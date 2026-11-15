@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  agronasa:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: agronasa-app
+    ports:
+      - "8000:8000"
+    environment:
+      - AGRONASA_CACHE_DIR=/tmp/agronasa_cache
+    restart: unless-stopped

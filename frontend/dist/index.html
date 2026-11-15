@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgroNASA · Recomendador agroclimático con datos NASA</title>
+  <!--
+    AgroNASA — diseño «Mapa amigable».
+    El mapa ocupa toda la pantalla y se toca la parcela. Menú lateral de arcilla suave
+    (formas infladas, pastel, Baloo 2 + Nunito), desplegable de dos maneras:
+      1. Todo el menú se guarda y se vuelve a sacar con un botón, para dejar el mapa libre.
+      2. Dentro, cada sección (Qué sembrar, Clima, Suelo, Sensores, Metodología) es un acordeón.
+    Colores: derivan de --tono-marca (OKLCH).
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@400;600;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    :root {
+      --tono-marca: 145;
+      --fondo: oklch(0.94 0.035 calc(var(--tono-marca) - 60));
+      --arcilla: oklch(0.985 0.012 calc(var(--tono-marca) - 60));
+      --hundido: oklch(0.91 0.035 calc(var(--tono-marca) - 60));
+      --tinta: oklch(0.3 0.05 calc(var(--tono-marca) + 110));
+      --tenue: oklch(0.47 0.04 calc(var(--tono-marca) + 110));
+      --marca: oklch(0.62 0.15 var(--tono-marca));
+      --marca-oscura: oklch(0.42 0.11 var(--tono-marca));
+      --sobre-marca: oklch(0.99 0.01 var(--tono-marca));
+      --bien: oklch(0.88 0.1 var(--tono-marca));
+      --medio: oklch(0.91 0.11 90);
+      --mal: oklch(0.88 0.07 30);
+      --nulo: oklch(0.9 0.015 260);
+      --cielo: oklch(0.86 0.07 235);
+      --txt-mal: oklch(0.45 0.13 40);
+      --titulo: "Baloo 2", "Trebuchet MS", sans-serif;
+      --texto: "Nunito", "Segoe UI", sans-serif;
+      --inflado: 0 12px 26px oklch(0.4 0.06 calc(var(--tono-marca) - 60) / 0.22), inset 0 -6px 10px oklch(0.4 0.06 calc(var(--tono-marca) - 60) / 0.1), inset 0 6px 10px oklch(1 0 0 / 0.8);
+      --inflado-chico: 0 5px 12px oklch(0.4 0.06 calc(var(--tono-marca) - 60) / 0.18), inset 0 -3px 6px oklch(0.4 0.06 calc(var(--tono-marca) - 60) / 0.08), inset 0 3px 6px oklch(1 0 0 / 0.8);
+      --pulsado: inset 0 4px 10px oklch(0.4 0.06 calc(var(--tono-marca) - 60) / 0.22), inset 0 -3px 6px oklch(1 0 0 / 0.7);
+      --ancho-menu: 26.5rem;
+      --bajo-clima: 6.2rem; /* se recalcula al medir el encabezado del clima */
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; color: var(--tinta); font: 400 1rem/1.5 var(--texto); overflow: hidden; background: var(--fondo); }
+    h1, h2, h3, p { margin: 0; }
+    h1, h2, h3 { font-family: var(--titulo); line-height: 1.1; }
+    button, input, select { font: inherit; color: inherit; }
+    :focus-visible { outline: 3px solid oklch(0.5 0.2 285); outline-offset: 3px; }
+    [hidden] { display: none !important; }
+
+    #mapa { position: fixed; inset: 0; z-index: 0; }
+    .leaflet-container { font-family: var(--texto); }
+    .leaflet-top.leaflet-left { left: auto; right: 0.6rem; top: calc(var(--bajo-clima) + 3.9rem); }
+    .leaflet-bar { border: 0 !important; border-radius: 18px !important; overflow: hidden; box-shadow: var(--inflado-chico) !important; }
+    .leaflet-bar a { background: var(--arcilla) !important; color: var(--tinta) !important; width: 40px !important; height: 40px !important; line-height: 40px !important; }
+
+    /* ——— botones flotantes ——— */
+    .zonas { position: fixed; z-index: 1000; top: var(--bajo-clima); right: 0.75rem; left: calc(var(--ancho-menu) + 1.5rem); display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.25rem 0.25rem 0.75rem; scrollbar-width: none; justify-content: flex-end; transition: left 0.35s ease; }
+    .menu-cerrado .zonas { left: 0.75rem; }
+    .pastilla { cursor: pointer; flex: none; min-height: 46px; padding: 0.4rem 1.05rem; border: 0; border-radius: 999px; background: var(--arcilla); box-shadow: var(--inflado-chico); font: 800 1rem var(--titulo); white-space: nowrap; transition: transform 0.12s; }
+    .pastilla:hover { transform: translateY(-2px); }
+    .pastilla:active { transform: translateY(1px); box-shadow: var(--pulsado); }
+    .pastilla[aria-pressed="true"] { background: var(--marca); color: var(--sobre-marca); }
+    .abrir { position: fixed; z-index: 1001; top: 0.75rem; left: 0.75rem; display: none; align-items: center; gap: 0.5rem; }
+    .abrir span[aria-hidden] { font-size: 1.2rem; }
+    .menu-cerrado .abrir { display: inline-flex; animation: sale 0.3s ease both; }
+
+    /* ——— menú lateral de arcilla (ocupa todo lo alto) ——— */
+    .menu { position: fixed; z-index: 1002; top: 0.75rem; left: 0.75rem; bottom: 0.75rem; width: var(--ancho-menu); background: var(--fondo); border-radius: 34px; box-shadow: var(--inflado); display: flex; flex-direction: column; overflow: hidden; transition: transform 0.35s ease, visibility 0s; }
+    .menu-cerrado .menu { transform: translateX(calc(-100% - 1.5rem)); visibility: hidden; transition: transform 0.35s ease, visibility 0s 0.35s; }
+    .asa { display: none; }
+
+    .cab { padding: 1rem 1.1rem 0.9rem; display: grid; gap: 0.7rem; }
+    .cab-fila { display: flex; justify-content: space-between; align-items: center; gap: 0.35rem; min-width: 0; }
+    .cab-fila .marca { margin-right: auto; }
+    .marca { font: 800 1.2rem var(--titulo); display: flex; align-items: center; gap: 0.45rem; }
+    .marca span { width: 2.2rem; height: 2.2rem; display: grid; place-content: center; font-size: 1.15rem; background: var(--bien); border-radius: 50%; box-shadow: var(--inflado-chico); }
+    .demo { font-weight: 800; font-size: 0.7rem; background: var(--medio); padding: 0.2rem 0.5rem; border-radius: 999px; white-space: nowrap; }
+    .guardar { cursor: pointer; flex: none; min-height: 44px; padding: 0.3rem 0.7rem; border: 0; border-radius: 999px; background: var(--arcilla); box-shadow: var(--inflado-chico); font-weight: 800; font-size: 0.9rem; }
+    .guardar:hover { transform: translateY(-1px); }
+    .guardar:active { box-shadow: var(--pulsado); }
+    .lugar { background: var(--arcilla); border-radius: 26px; box-shadow: var(--inflado-chico); padding: 0.85rem 1rem; }
+    .lugar small { font-weight: 800; font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--marca-oscura); }
+    .lugar h1 { font-size: 1.55rem; font-weight: 800; margin: 0.1rem 0; }
+    .lugar p { color: var(--tenue); font-size: 0.9rem; }
+    .datos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.45rem; margin-top: 0.6rem; }
+    .dato { background: var(--hundido); box-shadow: var(--pulsado); border-radius: 16px; padding: 0.4rem 0.5rem; text-align: center; }
+    .dato b { display: block; font: 800 1.05rem var(--titulo); }
+    .dato span { display: block; font-size: 0.72rem; line-height: 1.25; color: var(--tenue); }
+
+    .mes-pick { display: grid; grid-template-columns: 50px 1fr 50px; align-items: center; gap: 0.5rem; }
+    .mes-pick button { cursor: pointer; height: 50px; border: 0; border-radius: 50%; background: var(--arcilla); box-shadow: var(--inflado-chico); font: 800 1.5rem/1 var(--titulo); transition: transform 0.12s; }
+    .mes-pick button:hover { transform: translateY(-2px); }
+    .mes-pick button:active { transform: none; box-shadow: var(--pulsado); }
+    .mes-pick div { text-align: center; background: var(--hundido); box-shadow: var(--pulsado); border-radius: 999px; padding: 0.25rem 0.5rem; }
+    .mes-pick small { display: block; font-size: 0.75rem; color: var(--tenue); line-height: 1.2; }
+    .mes-pick strong { font: 800 1.2rem/1.2 var(--titulo); }
+
+    /* ——— secciones desplegables ——— */
+    .cuerpo { flex: 1; overflow-y: auto; padding: 0.3rem 1.1rem 1.2rem; display: grid; gap: 0.8rem; align-content: start; overscroll-behavior: contain; }
+    .seccion { background: var(--arcilla); border-radius: 26px; box-shadow: var(--inflado-chico); }
+    .seccion > summary { cursor: pointer; list-style: none; display: grid; grid-template-columns: auto 1fr auto; gap: 0.7rem; align-items: center; padding: 0.7rem 0.9rem; min-height: 60px; border-radius: 26px; }
+    .seccion > summary::-webkit-details-marker { display: none; }
+    .seccion > summary .dib { width: 2.6rem; height: 2.6rem; display: grid; place-content: center; font-size: 1.35rem; border-radius: 50%; background: var(--bien); box-shadow: var(--inflado-chico); }
+    .seccion.suelo > summary .dib { background: var(--medio); }
+    .seccion.iot > summary .dib { background: var(--mal); }
+    .seccion.metodo > summary .dib { background: var(--nulo); }
+    .seccion > summary h2 { font-size: 1.2rem; font-weight: 800; }
+    .seccion > summary small { color: var(--tenue); font-size: 0.85rem; }
+    .seccion > summary::after { content: "+"; width: 2.1rem; height: 2.1rem; display: grid; place-content: center; border-radius: 50%; background: var(--hundido); box-shadow: var(--pulsado); font: 800 1.3rem/1 var(--titulo); }
+    .seccion[open] > summary::after { content: "–"; }
+    .seccion > .dentro { padding: 0.2rem 0.9rem 1rem; display: grid; gap: 0.7rem; animation: baja 0.25s ease both; }
+
+    .campo { min-height: 48px; width: 100%; padding: 0.4rem 0.9rem; border: 0; border-radius: 16px; background: var(--hundido); box-shadow: var(--pulsado); font-weight: 600; }
+    label.rot { display: grid; gap: 0.2rem; font-weight: 800; font-size: 0.9rem; }
+
+    .cultivo { border-radius: 22px; background: var(--fondo); }
+    .cultivo > summary { cursor: pointer; list-style: none; display: grid; grid-template-columns: auto 1fr auto; gap: 0.6rem; align-items: center; padding: 0.55rem 0.7rem; border-radius: 22px; }
+    .cultivo > summary::-webkit-details-marker { display: none; }
+    .cultivo .dib { font-size: 1.7rem; line-height: 1; width: 2.8rem; height: 2.8rem; display: grid; place-content: center; background: var(--arcilla); border-radius: 50%; box-shadow: var(--inflado-chico); }
+    .cultivo h3 { font-size: 1.1rem; font-weight: 800; }
+    .cultivo .sub { font-size: 0.8rem; color: var(--tenue); display: block; }
+    .luz { font-size: 0.74rem; font-weight: 800; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--bien); white-space: nowrap; text-align: center; }
+    .luz b { display: block; font: 800 1.05rem/1.1 var(--titulo); }
+    [data-nivel="cuidados"] > summary .luz { background: var(--medio); }
+    [data-nivel="poco"] > summary .luz { background: var(--mal); }
+    [data-nivel="no"] > summary .luz { background: var(--nulo); }
+    .porque { padding: 0.1rem 0.8rem 0.8rem; display: grid; gap: 0.45rem; font-size: 0.93rem; }
+    .factor { display: grid; grid-template-columns: 8.4rem 1fr 3.9rem; gap: 0.5rem; align-items: center; font-size: 0.84rem; }
+    .tubo { height: 10px; border-radius: 999px; background: var(--hundido); box-shadow: var(--pulsado); overflow: hidden; }
+    .tubo i { display: block; height: 100%; border-radius: 999px; background: var(--marca); }
+    .tubo i[data-n="medio"] { background: oklch(0.78 0.14 85); }
+    .tubo i[data-n="bajo"] { background: oklch(0.68 0.15 32); }
+    .factor span:last-child { text-align: right; font-weight: 800; }
+    .nota { background: var(--medio); border-radius: 14px; padding: 0.45rem 0.7rem; }
+
+    .aviso { border-radius: 20px; padding: 0.7rem 0.85rem; background: var(--bien); display: grid; grid-template-columns: auto 1fr; gap: 0.6rem; }
+    .aviso[data-g="aviso"] { background: var(--medio); }
+    .aviso[data-g="peligro"] { background: var(--mal); }
+    .aviso .ico { font-size: 1.4rem; line-height: 1.2; }
+    .aviso h3 { font-size: 1rem; font-weight: 800; }
+    .aviso p { font-size: 0.88rem; }
+    .anio { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; height: 8.5rem; }
+    .anio div { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; font-size: 0.68rem; color: var(--tenue); border-radius: 10px; padding: 0.2rem 0; }
+    .anio i { display: block; width: 76%; background: var(--cielo); border-radius: 999px; min-height: 6px; box-shadow: inset 0 -3px 5px oklch(0.4 0.08 235 / 0.25); }
+    .anio b { color: var(--tinta); }
+    .anio .siembra { background: var(--bien); }
+    /* ——— encabezado del clima, alineado a la derecha sin chocar con el menú ——— */
+    .clima-cab { position: fixed; z-index: 1003; top: 0.75rem; right: 0.75rem; left: auto; width: fit-content; max-width: calc(100vw - var(--ancho-menu) - 2.25rem); background: var(--arcilla); border-radius: 24px; box-shadow: var(--inflado); padding: 0.45rem 0.85rem; transition: max-width 0.35s ease; }
+    .menu-cerrado .clima-cab { right: 0.75rem; left: auto; max-width: calc(100vw - 14.25rem); }
+    .clima-fila { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: center; justify-content: flex-end; }
+    .clima-titulo { display: flex; align-items: center; gap: 0.5rem; }
+    .clima-titulo .dib { width: 2.1rem; height: 2.1rem; display: grid; place-content: center; font-size: 1.1rem; border-radius: 50%; background: var(--cielo); box-shadow: var(--inflado-chico); }
+    .clima-titulo h2 { font-size: 1rem; font-weight: 800; line-height: 1; }
+    .clima-titulo small { color: var(--tenue); font-size: 0.74rem; line-height: 1.1; }
+    .mas-clima { cursor: pointer; min-height: 36px; padding: 0.15rem 0.8rem; border: 0; border-radius: 999px; background: var(--arcilla); box-shadow: var(--inflado-chico); font: 800 0.85rem var(--titulo); white-space: nowrap; }
+    .mas-clima:active { box-shadow: var(--pulsado); }
+    .clima-detalle { position: fixed; top: var(--bajo-clima); right: 0.75rem; left: auto; width: min(34rem, calc(100vw - var(--ancho-menu) - 2.25rem)); max-height: calc(100dvh - var(--bajo-clima) - 0.75rem); overflow-y: auto; background: var(--arcilla); border-radius: 30px; box-shadow: var(--inflado); padding: 1rem 1.1rem; display: grid; gap: 0.7rem; animation: baja 0.25s ease both; }
+    .menu-cerrado .clima-detalle { right: 0.75rem; left: auto; width: min(34rem, calc(100vw - 1.5rem)); }
+    .clima-detalle[hidden] { display: none; }
+    .clima-cab .lluvia-dias { gap: 4px; grid-template-columns: repeat(7, 2.9rem); }
+    .clima-cab .lluvia-dias div { padding: 0.2rem 0.1rem 0.3rem; gap: 0.1rem; border-radius: 12px; font-size: 0.64rem; line-height: 1.1; }
+    .clima-cab .lluvia-dias b { font-size: 0.85rem; }
+    .clima-cab .lluvia-dias .gota { width: 80%; height: 5px; }
+    .clima-cab .lluvia-dias .gota i { height: 100% !important; width: var(--p); }
+    .horas-lluvia { display: grid; grid-template-columns: repeat(6, 3.1rem); gap: 3px; background: var(--bien); border-radius: 18px; padding: 0.25rem; box-shadow: var(--pulsado); }
+    .horas-lluvia[hidden] { display: none; }
+    .horas-lluvia div { display: grid; justify-items: center; gap: 0; font-size: 0.64rem; line-height: 1.2; color: var(--marca-oscura); text-align: center; }
+    .horas-lluvia .ico { font-size: 1.05rem; line-height: 1.3; }
+    .horas-lluvia b { font: 800 0.85rem/1.1 var(--titulo); color: var(--tinta); }
+    .horas-lluvia .ahora { font-weight: 800; color: var(--tinta); }
+    .lluvia-dias.solo-movil { display: none; }
+    .lluvia-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+    .lluvia-dias div { display: grid; justify-items: center; gap: 0.15rem; background: var(--fondo); border-radius: 16px; padding: 0.4rem 0.1rem; font-size: 0.68rem; color: var(--tenue); text-align: center; }
+    .lluvia-dias .hoy { background: var(--bien); }
+    .lluvia-dias b { font: 800 0.95rem/1.1 var(--titulo); color: var(--tinta); }
+    .lluvia-dias .gota { width: 0.9rem; height: 2.4rem; border-radius: 999px; background: var(--hundido); box-shadow: var(--pulsado); display: flex; align-items: flex-end; overflow: hidden; }
+    .lluvia-dias .gota i { display: block; width: 100%; background: var(--cielo); border-radius: 999px; box-shadow: inset 0 -3px 5px oklch(0.4 0.08 235 / 0.25); }
+    .pie-grafico { font-size: 0.82rem; color: var(--tenue); }
+
+    .par { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .accion { cursor: pointer; min-height: 52px; border: 0; border-radius: 999px; background: var(--marca); color: var(--sobre-marca); font: 800 1.05rem var(--titulo); padding: 0.5rem 1rem; box-shadow: var(--inflado-chico); transition: transform 0.12s; }
+    .accion:hover { transform: translateY(-2px); }
+    .accion:active { transform: none; box-shadow: var(--pulsado); }
+    .pasos { list-style: none; margin: 0; padding: 0; counter-reset: p; display: grid; gap: 0.65rem; }
+    .pasos li { counter-increment: p; display: grid; grid-template-columns: auto 1fr; gap: 0.65rem; align-items: start; font-size: 0.92rem; background: var(--fondo); border-radius: 20px; padding: 0.65rem 0.75rem; }
+    .pasos li::before { content: counter(p); width: 2rem; height: 2rem; border-radius: 50%; background: var(--medio); box-shadow: var(--inflado-chico); display: grid; place-content: center; font: 800 1rem var(--titulo); }
+    .pasos small { color: var(--tenue); }
+    .paso-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+    .paso-tags { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem; }
+    .etiqueta-rot { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.76rem; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 999px; box-shadow: var(--inflado-chico); background: var(--arcilla); }
+    .etiqueta-rot[data-c="rojo"] { background: oklch(0.91 0.08 25); color: oklch(0.4 0.16 25); }
+    .etiqueta-rot[data-c="naranja"] { background: oklch(0.92 0.09 55); color: oklch(0.42 0.15 50); }
+    .etiqueta-rot[data-c="amarillo"] { background: oklch(0.93 0.1 95); color: oklch(0.42 0.12 85); }
+    .etiqueta-rot[data-c="verde"] { background: oklch(0.9 0.1 145); color: oklch(0.36 0.13 145); }
+    .etiqueta-rot[data-c="azul"] { background: oklch(0.9 0.08 240); color: oklch(0.38 0.14 240); }
+    .etiqueta-rot[data-c="morado"] { background: oklch(0.9 0.08 300); color: oklch(0.38 0.14 300); }
+    .leyenda-rot { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.2rem; }
+    .consejos { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; color: var(--tenue); }
+    .legal { font-size: 0.78rem; color: var(--tenue); text-align: center; padding: 0 0.5rem; }
+
+    /* ——— sensores en campo (IoT LoRaWAN) y metodología ——— */
+    .sensores { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: 0.5rem; }
+    .sensor { background: var(--fondo); border-radius: 20px; padding: 0.6rem 0.75rem; display: grid; gap: 0.1rem; font-size: 0.78rem; color: var(--tenue); }
+    .sensor b { font: 800 1.35rem/1.15 var(--titulo); color: var(--tinta); }
+    .sensor strong { font-size: 0.78rem; color: var(--marca-oscura); }
+    .sensor.seco { background: var(--mal); }
+    .sensor.seco b, .sensor.seco strong { color: var(--txt-mal); }
+    .foto-par { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .foto { background: var(--fondo); border-radius: 20px; padding: 0.55rem; font-size: 0.74rem; color: var(--tenue); }
+    .foto strong { color: var(--tinta); display: block; }
+    .foto svg { width: 100%; border-radius: 12px; margin: 0.3rem 0; display: block; }
+    .equipos { display: grid; gap: 0.4rem; }
+    .equipo { display: grid; grid-template-columns: 1fr auto; gap: 0.1rem 0.6rem; background: var(--fondo); border-radius: 18px; padding: 0.5rem 0.8rem; font-size: 0.8rem; color: var(--tenue); }
+    .equipo strong { color: var(--tinta); font-size: 0.88rem; }
+    .equipo b { font: 800 0.95rem var(--titulo); color: var(--marca-oscura); text-align: right; }
+    .equipo b.baja { color: var(--txt-mal); }
+    .texto-largo { display: grid; gap: 0.6rem; font-size: 0.9rem; color: var(--tenue); }
+    .texto-largo strong { color: var(--tinta); }
+    .texto-largo code { background: var(--hundido); border-radius: 8px; padding: 0 0.3rem; font-size: 0.82rem; }
+    .texto-largo ol { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.3rem; }
+
+    /* ——— tirador: borde derecho para agrandar el menú, como al cambiar el tamaño de una ventana ——— */
+    .tirador { position: absolute; top: 0; right: 0; bottom: 0; width: 16px; z-index: 5; cursor: ew-resize; touch-action: none; display: grid; place-content: center; }
+    .tirador::after { content: ""; width: 6px; height: 3.5rem; border-radius: 999px; background: var(--hundido); box-shadow: var(--pulsado); transition: background-color 0.15s, height 0.15s; }
+    .tirador:hover::after, .tirador:focus-visible::after, .arrastrando .tirador::after { background: var(--marca); height: 5rem; }
+    .arrastrando, .arrastrando * { cursor: ew-resize !important; user-select: none; }
+    .arrastrando .menu, .arrastrando .zonas, .arrastrando .clima-cab, .arrastrando .clima-detalle { transition: none; }
+    .cab, .cuerpo { padding-right: 1.3rem; }
+    #cultivos { grid-template-columns: repeat(auto-fill, minmax(min(21rem, 100%), 1fr)); align-items: start; }
+
+    /* ——— celular: el menú es una hoja inferior que se sube y se baja ——— */
+    @media (max-width: 64rem) {
+      .clima-fila { gap: 0.45rem 0.7rem; }
+      .clima-fila .horas-lluvia { grid-template-columns: repeat(6, minmax(2.5rem, 1fr)); }
+      .clima-fila .lluvia-dias { grid-template-columns: repeat(7, minmax(2.3rem, 1fr)); }
+    }
+    @media (min-width: 48.01rem) and (max-width: 64rem) {
+      .zonas { flex-wrap: wrap; overflow: visible; }
+    }
+    @media (max-width: 48rem) {
+      .tirador { display: none; }
+      .cab, .cuerpo { padding-right: 1.1rem; }
+      .zonas { left: 0.4rem !important; right: 0.4rem; justify-content: flex-start; }
+      .leaflet-control-zoom { display: none; }
+      .clima-fila .lluvia-dias { display: none; }
+      .lluvia-dias.solo-movil { display: grid; }
+      .clima-cab { top: 0.4rem; left: 0.4rem !important; right: 0.4rem; width: auto; max-width: calc(100vw - 0.8rem) !important; }
+      .clima-detalle { top: var(--bajo-clima); left: 50% !important; transform: translateX(-50%); width: min(34rem, calc(100vw - 1.5rem)) !important; max-height: calc(100dvh - var(--bajo-clima) - 0.75rem); }
+      .abrir { display: none !important; }
+      .guardar { display: none; }
+      .menu { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 66dvh; border-radius: 34px 34px 0 0; transition: height 0.35s ease; }
+      .menu-cerrado .menu { transform: none; visibility: visible; height: 8.6rem; transition: height 0.35s ease; }
+      .menu-cerrado .datos, .menu-cerrado .mes-pick, .menu-cerrado .cuerpo, .menu-cerrado .cab-fila { display: none; }
+      .asa { cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%; min-height: 46px; border: 0; background: none; font-weight: 800; font-size: 0.9rem; color: var(--tenue); flex: none; }
+      .asa::before { content: ""; width: 2.8rem; height: 7px; border-radius: 999px; background: var(--hundido); box-shadow: var(--pulsado); }
+      .cab { padding-top: 0; }
+      /* en el celular se desplaza toda la hoja, no solo la lista: así queda más espacio para leer */
+      .menu { overflow-y: auto; overscroll-behavior: contain; }
+      .cuerpo { flex: none; overflow: visible; }
+      .asa { position: sticky; top: 0; z-index: 2; background: var(--fondo); }
+    }
+    @keyframes baja { from { opacity: 0; transform: translateY(-6px); } }
+    @keyframes sale { from { opacity: 0; transform: translateX(-12px); } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+  </style>
+</head>
+<body>
+  <div id="mapa" aria-label="Mapa: toca para elegir tu parcela"></div>
+
+  <header class="clima-cab" id="clima-cab" aria-label="Cómo viene el clima">
+    <div class="clima-fila">
+      <div class="clima-titulo"><span class="dib" aria-hidden="true">🌦️</span><div><h2>Cómo viene el clima</h2><small id="r-clima">—</small></div></div>
+      <div class="horas-lluvia" id="lluvia-horas" aria-label="Probabilidad de lluvia en las próximas 6 horas" hidden></div>
+      <div class="lluvia-dias" id="lluvia-dias" aria-live="polite" aria-label="Probabilidad de lluvia de los próximos días"></div>
+      <button class="mas-clima" id="mas-clima" type="button" aria-expanded="false" aria-controls="clima-detalle">Ver más <span aria-hidden="true">▾</span></button>
+    </div>
+    <div class="clima-detalle" id="clima-detalle" hidden>
+      <div class="lluvia-dias solo-movil" id="lluvia-dias-detalle" aria-label="Probabilidad de lluvia de los próximos días"></div>
+      <p class="pie-grafico" id="lluvia-base"></p>
+      <div id="avisos" style="display:grid;gap:.55rem"></div>
+      <h3 style="font-size:1.05rem;font-weight:800">La lluvia en un año normal (NASA POWER)</h3>
+      <div class="anio" id="anio"></div>
+      <p class="pie-grafico">Milímetros por mes (<code>PRECTOTCORR</code>); debajo, la temperatura media (<code>T2M</code>). En verde, tu mes de siembra.</p>
+      <div class="datos" id="datos-nasa-clima"></div>
+    </div>
+  </header>
+
+  <button class="pastilla abrir" id="abrir" type="button" aria-expanded="false" aria-controls="menu"><span aria-hidden="true">🌱</span> Abrir el menú</button>
+
+  <div class="zonas" id="zonas" role="group" aria-label="Ir a una zona"></div>
+
+  <main class="menu" id="menu" aria-label="Menú de recomendaciones">
+    <button class="asa" id="asa" type="button" aria-expanded="true" aria-controls="cuerpo">Bajar para ver el mapa</button>
+
+    <header class="cab">
+      <div class="cab-fila">
+        <div class="marca"><span aria-hidden="true">🌱</span>AgroNASA</div>
+        <span class="demo" id="demo" hidden>Datos de ejemplo</span>
+        <button class="guardar" id="guardar" type="button" aria-expanded="true" aria-controls="menu">‹ Guardar menú</button>
+      </div>
+
+      <div class="lugar">
+        <small>Tu parcela · toca el mapa para cambiarla</small>
+        <h1 id="lugar" aria-live="polite">—</h1>
+        <p id="coords"></p>
+        <div class="datos" id="datos"></div>
+      </div>
+
+      <div class="mes-pick">
+        <button type="button" id="mes-antes" aria-label="Mes anterior">‹</button>
+        <div aria-live="polite"><small>Quiero sembrar en</small><strong id="mes">—</strong></div>
+        <button type="button" id="mes-despues" aria-label="Mes siguiente">›</button>
+      </div>
+    </header>
+
+    <div class="cuerpo" id="cuerpo">
+      <details class="seccion cultivos" name="seccion" open>
+        <summary><span class="dib" aria-hidden="true">🌽</span><div><h2>Qué sembrar</h2><small id="r-cultivos">—</small></div></summary>
+        <div class="dentro">
+          <label class="rot">Tipo de cultivo <select class="campo" id="tipo"></select></label>
+          <div id="cultivos" style="display:grid;gap:.55rem"></div>
+        </div>
+      </details>
+
+
+      <details class="seccion suelo" name="seccion">
+        <summary><span class="dib" aria-hidden="true">🪴</span><div><h2>Mi suelo y rotación</h2><small id="r-suelo">Opcional · responde a ojo</small></div></summary>
+        <form class="dentro" id="suelo">
+          <label class="rot">Tierra húmeda entre los dedos
+            <select class="campo" id="f-textura"><option value="franco">Suave y equilibrada</option><option value="franco-arenoso">Suelta, se desarma</option><option value="franco-arcilloso">Forma una cinta</option><option value="arenoso">Rasposa, como arena</option><option value="arcilloso">Pesada y pegajosa</option></select></label>
+          <label class="rot">Después de una lluvia fuerte
+            <select class="campo" id="f-drenaje"><option value="bueno">No quedan charcos</option><option value="moderado">El agua se va en horas</option><option value="pobre">Queda agua por días</option></select></label>
+          <label class="rot">Hojas de las plantas
+            <select class="campo" id="f-n"><option value="bajo">Pálidas o amarillas</option><option value="medio">Normales</option><option value="alto">Verde bien oscuro</option></select></label>
+          <div class="par">
+            <label class="rot">pH <input class="campo" id="f-ph" type="number" inputmode="decimal" step="0.1" min="3.5" max="9.5" value="6.2" /></label>
+            <label class="rot">Mat. orgánica % <input class="campo" id="f-mo" type="number" inputmode="decimal" step="0.1" min="0" max="30" value="1.8" /></label>
+          </div>
+          <button class="accion" type="submit">Ajustar con mi suelo</button>
+          <div id="plan" aria-live="polite" style="display:grid;gap:.7rem"></div>
+        </form>
+      </details>
+
+      <details class="seccion iot" name="seccion">
+        <summary><span class="dib" aria-hidden="true">📡</span><div><h2>Sensores en campo</h2><small id="r-iot">IoT LoRaWAN + NASA POWER</small></div></summary>
+        <div class="dentro">
+          <div id="iot-alertas" style="display:grid;gap:.55rem">
+            <div class="aviso" data-g="aviso"><span class="ico" aria-hidden="true">⚠️</span><div><h3>Alerta de parcela · Sonda #02</h3><p id="iot-alerta-suelo">La humedad del suelo bajó a <strong>26 %</strong> (umbral de riego: 30 %). Confirma en terreno el déficit que detecta el satélite.</p></div></div>
+            <div class="aviso" data-g="ok"><span class="ico" aria-hidden="true">🛰️</span><div><h3>Satélite NASA POWER + sensores</h3><p id="iot-aviso-nasa">Microclima local <strong>+1.8 °C</strong> más templado que el promedio de la celda satelital. Sin riesgo de helada nocturna.</p></div></div>
+          </div>
+
+          <div class="sensores" id="iot-sensores">
+            <div class="sensor"><span>🌡️ Temp. ambiente</span><b>22.4 °C</b><strong>✓ Sin helada (mín. 8.4 °C)</strong><span>Nodo #01 · hace 4 min</span></div>
+            <div class="sensor"><span>💧 Humedad ambiente</span><b>54 %</b><strong>✓ Riesgo de hongos bajo</strong><span>Nodo #01 · hace 4 min</span></div>
+            <div class="sensor"><span>🌱 Temp. del suelo</span><b>18.9 °C</b><strong>✓ Óptima para germinar</strong><span>Sonda #02 · hace 12 min</span></div>
+            <div class="sensor seco"><span>🌊 Humedad del suelo</span><b>26 %</b><strong>⚠️ Suelo seco: regar hoy</strong><span>Sonda #02 · hace 12 min</span></div>
+            <div class="sensor"><span>🧭 Viento</span><b>↗ NE · 11 km/h</b><strong>✓ Apto para fumigar</strong><span>Veleta #01 · hace 4 min</span></div>
+          </div>
+
+          <h3 style="font-size:1.05rem;font-weight:800">📸 Cámara diaria del terreno</h3>
+          <div class="foto-par">
+            <div class="foto"><strong id="iot-foto-ant-tit">Hace 20 días · verde 24 %</strong>
+              <svg viewBox="0 0 240 110" aria-hidden="true"><rect width="240" height="40" fill="#1e3a5f"/><rect y="40" width="240" height="70" fill="#5c4033"/><g fill="#22c55e"><circle cx="40" cy="65" r="5"/><circle cx="90" cy="65" r="5"/><circle cx="140" cy="65" r="5"/><circle cx="190" cy="65" r="5"/><circle cx="50" cy="90" r="6"/><circle cx="100" cy="90" r="6"/><circle cx="150" cy="90" r="6"/><circle cx="200" cy="90" r="6"/></g></svg>
+              <span id="iot-foto-ant-sub">Emergencia · NDVI 0.34</span></div>
+            <div class="foto"><strong id="iot-foto-act-tit">Hoy 12:00 · verde 58 % (+34 %)</strong>
+              <svg viewBox="0 0 240 110" aria-hidden="true"><rect width="240" height="40" fill="#1e3a5f"/><rect y="40" width="240" height="70" fill="#493326"/><g fill="#16a34a"><ellipse cx="40" cy="65" rx="16" ry="10"/><ellipse cx="90" cy="65" rx="16" ry="10"/><ellipse cx="140" cy="65" rx="16" ry="10"/><ellipse cx="190" cy="65" rx="16" ry="10"/><ellipse cx="50" cy="90" rx="18" ry="12"/><ellipse cx="100" cy="90" rx="18" ry="12"/><ellipse cx="150" cy="90" rx="18" ry="12"/><ellipse cx="200" cy="90" rx="18" ry="12"/></g></svg>
+              <span id="iot-foto-act-sub">Crecimiento vigoroso · NDVI 0.48</span></div>
+          </div>
+
+          <h3 style="font-size:1.05rem;font-weight:800">🔋 Estado de los equipos</h3>
+          <div class="equipos" id="iot-equipos">
+            <div class="equipo"><strong>Nodo #01 · aire + veleta</strong><b>94 % ☀</b><span>LoRaWAN 15 min · −78 dBm</span><span>hace 4 min</span></div>
+            <div class="equipo"><strong>Nodo #02 · suelo norte</strong><b>88 %</b><span>LoRaWAN 30 min · −89 dBm</span><span>hace 12 min</span></div>
+            <div class="equipo"><strong>Nodo #03 · suelo sur</strong><b class="baja">42 %</b><span>LoRaWAN 30 min · −95 dBm</span><span>hace 18 min</span></div>
+            <div class="equipo"><strong>Cámara fenológica</strong><b>96 % ☀</b><span>4G/LTE · 1 foto al día · −74 dBm</span><span>hoy 12:00</span></div>
+          </div>
+        </div>
+      </details>
+
+      <details class="seccion metodo" name="seccion">
+        <summary><span class="dib" aria-hidden="true">🛰️</span><div><h2>Metodología y límites</h2><small>Cómo se calcula y qué no hace</small></div></summary>
+        <div class="dentro texto-largo">
+          <p><strong>1. NASA POWER (Agroclimatología):</strong> consultamos <code>T2M</code>, <code>T2M_MAX</code>, <code>T2M_MIN</code>, <code>PRECTOTCORR</code>, <code>RH2M</code> y <code>GWETROOT</code> (humedad de la zona de raíces). Se descartan datos faltantes (<code>-999</code>) y se guarda en caché por celda de 0.5° × 0.625°.</p>
+          <p><strong>2. Segundo dataset NASA (MODIS NDVI + SMAP):</strong> la curva histórica de vigor vegetal y la humedad radicular dan contexto al estrés hídrico de la zona.</p>
+          <p><strong>3. Motor trapezoidal (FAO EcoCrop):</strong> cada cultivo se evalúa desde el mes de siembra hasta completar su ciclo, con funciones trapezoidales y media geométrica ponderada. Si un factor crítico vale 0, la viabilidad cae a 0.</p>
+          <p><strong>4. Alertas por percentil histórico:</strong> la lluvia de los últimos 30 y 60 días se compara con la misma ventana de los últimos 20 años: <code>&lt;10</code> sequía severa, <code>10–25</code> déficit, <code>25–75</code> normal, <code>75–90</code> exceso, <code>&gt;90</code> riesgo de inundación.</p>
+          <div class="aviso" data-g="aviso"><span class="ico" aria-hidden="true">⚠️</span><div><h3>Limitaciones</h3><p><strong>Resolución (~50 km):</strong> en valles hay microclimas que deben validarse en parcela. <strong>No es pronóstico:</strong> NASA POWER es observación y reanálisis; las alertas dicen qué tan seco o húmedo estuvo el periodo reciente frente al histórico.</p></div></div>
+          <h3 style="font-size:1.05rem;font-weight:800;color:var(--tinta)">🎤 Pitch de 3 minutos</h3>
+          <ol>
+            <li><strong>Problema (30 s):</strong> pequeños agricultores siembran a ciegas ante lluvias y heladas erráticas.</li>
+            <li><strong>Solución (30 s):</strong> un toque en el mapa → datos de la NASA traducidos en qué sembrar, cuándo y por qué.</li>
+            <li><strong>Demo (60 s):</strong> Altiplano vs. Valle vs. Llanos, más rotación de suelo.</li>
+            <li><strong>Impacto y honestidad (60 s):</strong> límites claros, ajuste por riesgo reciente y escalable por coordenadas.</li>
+          </ol>
+        </div>
+      </details>
+
+      <p class="legal">Guía orientativa basada en el clima habitual de la zona (NASA POWER, celdas de unos 50 km). No es un pronóstico ni reemplaza a un técnico agrónomo.</p>
+    </div>
+
+    <div class="tirador" id="tirador" role="separator" aria-orientation="vertical" tabindex="0"
+         aria-label="Ancho del menú: arrastra o usa las flechas izquierda y derecha" title="Arrastra para agrandar el menú (doble clic: tamaño original)"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+/* AgroNASA · núcleo de datos.
+ *
+ * Habla con el backend (/api/recommend, /api/climate, /api/explore, /api/rotation).
+ * Si el servidor no responde (por ejemplo, al abrir el archivo con doble clic), usa un
+ * modelo de EJEMPLO simplificado para que se pueda recorrer igual. Los datos de ejemplo
+ * NO son datos de la NASA.
+ */
+(function () {
+  "use strict";
+
+  const MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+  const FACTORES = {
+    temperatura: "Temperatura",
+    precipitacion: "Lluvia",
+    heladas: "Riesgo de heladas",
+    humedad_suelo: "Humedad del suelo",
+    suelo_ph: "pH del suelo",
+    suelo_textura: "Textura del suelo",
+    suelo_drenaje: "Drenaje del suelo",
+  };
+
+  const CATEGORIAS = {
+    cereales: "Cereales y granos",
+    tuberculos_raices: "Tubérculos y raíces",
+    legumbres: "Legumbres",
+    hortalizas: "Hortalizas",
+    oleaginosas: "Oleaginosas",
+    frutas: "Frutas",
+    regeneracion: "Regeneración",
+  };
+  const CATEGORIAS_FILTRO = ["cereales", "tuberculos_raices", "legumbres", "hortalizas", "oleaginosas", "frutas"];
+
+  /* Zonas de demostración: t = temperatura media mensual (°C), amp = mitad de la
+     amplitud diaria, p = lluvia mensual (mm). Valores aproximados de ejemplo. */
+  const ZONAS = [
+    { id: "valle", nombre: "Valle de Cochabamba", corto: "Valle", pista: "Templado, lluvias de noviembre a marzo", lat: -17.39, lon: -66.28, mes: 10, amp: 8,
+      t: [19.5, 19.2, 19, 18, 16, 14.5, 14.5, 16.5, 18.5, 20, 20.5, 20], p: [125, 105, 65, 18, 4, 2, 2, 6, 12, 25, 55, 95] },
+    { id: "altiplano", nombre: "Altiplano de La Paz", corto: "Altiplano", pista: "Frío, con heladas en invierno", lat: -16.5, lon: -68.15, mes: 10, amp: 8,
+      t: [9.5, 9.5, 9.3, 8.6, 7, 5.5, 5.2, 6.5, 8, 9.3, 10, 10], p: [120, 95, 65, 25, 10, 5, 6, 12, 28, 38, 48, 90] },
+    { id: "llanos", nombre: "Llanos de Santa Cruz", corto: "Llanos", pista: "Cálido y húmedo casi todo el año", lat: -17.78, lon: -63.18, mes: 11, amp: 5.5,
+      t: [27, 26.8, 26.5, 24.8, 22.5, 21, 21, 23.5, 25.5, 27, 27.3, 27.2], p: [195, 150, 125, 95, 85, 65, 50, 40, 65, 105, 130, 170] },
+    { id: "sierra", nombre: "Sierra de Cusco", corto: "Sierra", pista: "Fresco, con estación seca marcada", lat: -13.53, lon: -71.97, mes: 10, amp: 8.5,
+      t: [13, 13, 12.8, 12, 10.5, 9.5, 9, 10.5, 12, 13.2, 13.6, 13.3], p: [150, 125, 100, 40, 8, 3, 4, 8, 22, 45, 75, 110] },
+  ];
+
+  /* Cultivos de ejemplo. temp y lluvia son trapecios [mínimo, óptimo desde, óptimo hasta, máximo];
+     lluvia es el total durante el ciclo; frio = temperatura mínima que tolera. */
+  const CULTIVOS = [
+    { id: "maiz", nombre: "Maíz", cat: "cereales", fam: "Poáceas", ciclo: 150, temp: [10, 17, 28, 35], lluvia: [300, 450, 900, 1400], frio: 4, ph: [5.5, 7.5], icono: "🌽" },
+    { id: "quinua", nombre: "Quinua", cat: "cereales", fam: "Amarantáceas", ciclo: 170, temp: [2, 8, 18, 24], lluvia: [250, 350, 700, 1000], frio: -3, ph: [6, 8.5], icono: "🌾" },
+    { id: "trigo", nombre: "Trigo", cat: "cereales", fam: "Poáceas", ciclo: 140, temp: [4, 12, 22, 30], lluvia: [280, 420, 800, 1100], frio: -1, ph: [6, 7.8], icono: "🌾" },
+    { id: "arroz", nombre: "Arroz", cat: "cereales", fam: "Poáceas", ciclo: 130, temp: [18, 24, 32, 38], lluvia: [500, 800, 1600, 2400], frio: 12, ph: [5, 7], icono: "🍚" },
+    { id: "papa", nombre: "Papa", cat: "tuberculos_raices", fam: "Solanáceas", ciclo: 140, temp: [5, 10, 20, 26], lluvia: [300, 450, 800, 1100], frio: 0, ph: [5, 6.8], icono: "🥔" },
+    { id: "yuca", nombre: "Yuca", cat: "tuberculos_raices", fam: "Euforbiáceas", ciclo: 270, temp: [18, 24, 31, 36], lluvia: [600, 900, 1800, 2500], frio: 12, ph: [5, 7.5], icono: "🍠" },
+    { id: "oca", nombre: "Oca", cat: "tuberculos_raices", fam: "Oxalidáceas", ciclo: 210, temp: [4, 8, 16, 22], lluvia: [350, 500, 900, 1200], frio: -1, ph: [5.3, 7.5], icono: "🥕" },
+    { id: "haba", nombre: "Haba", cat: "legumbres", fam: "Fabáceas", ciclo: 160, temp: [3, 9, 19, 25], lluvia: [280, 400, 750, 1000], frio: -2, ph: [6, 8], icono: "🫛" },
+    { id: "frijol", nombre: "Frijol", cat: "legumbres", fam: "Fabáceas", ciclo: 100, temp: [12, 18, 27, 32], lluvia: [220, 330, 700, 1000], frio: 6, ph: [5.5, 7.5], icono: "🫘" },
+    { id: "arveja", nombre: "Arveja", cat: "legumbres", fam: "Fabáceas", ciclo: 110, temp: [5, 11, 20, 26], lluvia: [220, 330, 700, 1000], frio: 0, ph: [6, 7.5], icono: "🫛" },
+    { id: "tomate", nombre: "Tomate", cat: "hortalizas", fam: "Solanáceas", ciclo: 120, temp: [12, 19, 27, 33], lluvia: [250, 380, 800, 1200], frio: 8, ph: [5.8, 7], icono: "🍅" },
+    { id: "cebolla", nombre: "Cebolla", cat: "hortalizas", fam: "Amarilidáceas", ciclo: 150, temp: [8, 14, 24, 30], lluvia: [250, 350, 650, 900], frio: 2, ph: [6, 7.5], icono: "🧅" },
+    { id: "soya", nombre: "Soya", cat: "oleaginosas", fam: "Fabáceas", ciclo: 120, temp: [15, 22, 30, 36], lluvia: [350, 500, 900, 1300], frio: 10, ph: [5.8, 7.2], icono: "🌱" },
+    { id: "girasol", nombre: "Girasol", cat: "oleaginosas", fam: "Asteráceas", ciclo: 120, temp: [10, 19, 28, 35], lluvia: [250, 400, 800, 1100], frio: 4, ph: [6, 7.8], icono: "🌻" },
+    { id: "citricos", nombre: "Cítricos", cat: "frutas", fam: "Rutáceas", ciclo: 300, temp: [14, 21, 30, 36], lluvia: [650, 900, 1500, 2200], frio: 6, ph: [5.5, 7.5], icono: "🍊" },
+  ];
+  const ICONOS = Object.fromEntries(CULTIVOS.map((c) => [c.id, c.icono]));
+  const ICONOS_CAT = { cereales: "🌾", tuberculos_raices: "🥔", legumbres: "🫘", hortalizas: "🥬", oleaginosas: "🌻", frutas: "🍊", regeneracion: "♻️" };
+
+  /* ---------- utilidades ---------- */
+  const r1 = (n) => Math.round(n * 10) / 10;
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const limitar = (n, a, b) => Math.max(a, Math.min(b, n));
+  const trapecio = (x, [a, b, c, d]) => (x <= a || x >= d ? 0 : x < b ? (x - a) / (b - a) : x <= c ? 1 : (d - x) / (d - c));
+
+  function esc(texto) {
+    return String(texto ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+
+  function zonaCercana(lat, lon) {
+    let mejor = ZONAS[0], dist = Infinity;
+    for (const z of ZONAS) {
+      const d = Math.hypot(z.lat - lat, z.lon - lon);
+      if (d < dist) { dist = d; mejor = z; }
+    }
+    return { zona: mejor, dist };
+  }
+
+  /* ---------- modelo de ejemplo (solo sin servidor) ---------- */
+  function climaDemo(lat, lon) {
+    const { zona: z } = zonaCercana(lat, lon);
+    const meses = z.t.map((t, i) => {
+      const p = z.p[i], previa = z.p[(i + 11) % 12];
+      return {
+        codigo: MESES[i].slice(0, 3).toUpperCase(), nombre: MESES[i], t2m: t, t2m_max: r1(t + z.amp), t2m_min: r1(t - z.amp), precip_mm_mes: p,
+        gwetroot: r2(0.28 + 0.5 * Math.min(1, (p * 0.6 + previa * 0.4) / 160)),
+        ndvi: r2(0.18 + 0.55 * Math.min(1, (p * 0.5 + previa * 0.5) / 150)),
+      };
+    });
+    const media = (k) => meses.reduce((s, m) => s + m[k], 0) / 12;
+    return {
+      climatologia: {
+        meses,
+        resumen_anual: {
+          temp_media_c: r1(media("t2m")), temp_min_extrema_c: Math.min(...meses.map((m) => m.t2m_min)),
+          precip_anual_mm: Math.round(media("precip_mm_mes") * 12), ndvi_medio: r2(media("ndvi")),
+        },
+      },
+    };
+  }
+
+  function evaluar(c, meses, mes, suelo) {
+    const n = Math.ceil(c.ciclo / 30);
+    const ventana = Array.from({ length: n }, (_, i) => meses[(mes - 1 + i) % 12]);
+    const tMedia = ventana.reduce((s, m) => s + m.t2m, 0) / n;
+    const lluvia = ventana.reduce((s, m) => s + m.precip_mm_mes, 0);
+    const tMin = Math.min(...ventana.map((m) => m.t2m_min));
+    const humedad = ventana.reduce((s, m) => s + m.gwetroot, 0) / n;
+
+    const factores = {
+      temperatura: trapecio(tMedia, c.temp),
+      precipitacion: trapecio(lluvia, c.lluvia),
+      heladas: tMin >= c.frio ? 1 : limitar(1 - (c.frio - tMin) / 5, 0, 1),
+      humedad_suelo: limitar(humedad / 0.5, 0, 1),
+    };
+    const pesos = { temperatura: 0.35, precipitacion: 0.35, heladas: 0.2, humedad_suelo: 0.1 };
+    const observaciones = [];
+    if (suelo) {
+      if (suelo.ph != null) {
+        const fuera = suelo.ph < c.ph[0] ? c.ph[0] - suelo.ph : suelo.ph > c.ph[1] ? suelo.ph - c.ph[1] : 0;
+        factores.suelo_ph = limitar(1 - fuera / 1.5, 0.15, 1);
+        pesos.suelo_ph = 0.12;
+        if (fuera > 0) observaciones.push(`Prefiere un pH entre ${c.ph[0]} y ${c.ph[1]}; el tuyo es ${suelo.ph}.`);
+      }
+      if (suelo.drenaje) {
+        const raiz = c.cat === "tuberculos_raices";
+        factores.suelo_drenaje = suelo.drenaje === "bueno" ? 1 : suelo.drenaje === "moderado" ? 0.85 : c.id === "arroz" ? 1 : raiz ? 0.45 : 0.65;
+        pesos.suelo_drenaje = 0.1;
+        if (suelo.drenaje === "pobre" && c.id !== "arroz") observaciones.push("El drenaje pobre favorece pudriciones: siembra en camellones.");
+      }
+    }
+    const total = Object.values(pesos).reduce((a, b) => a + b, 0);
+    let producto = 1;
+    for (const k in pesos) producto *= Math.pow(factores[k], pesos[k] / total);
+    const puntaje = Math.round(producto * 100);
+
+    const limitante = Object.keys(factores).reduce((a, b) => (factores[b] < factores[a] ? b : a));
+    const etiqueta = puntaje >= 75 ? "Muy viable" : puntaje >= 55 ? "Viable con cuidados" : puntaje >= 35 ? "Poco viable" : "No recomendado";
+
+    const datos = `Durante el ciclo se esperan unos ${Math.round(tMedia)} °C de media y cerca de ${Math.round(lluvia)} mm de lluvia.`;
+    let consejo = "El clima de la zona encaja bien con lo que necesita.";
+    if (factores[limitante] < 0.9) {
+      const optT = (c.temp[1] + c.temp[2]) / 2, optP = (c.lluvia[1] + c.lluvia[2]) / 2;
+      consejo = {
+        temperatura: tMedia < optT ? "Hace más frío de lo que prefiere, así que crecerá más lento." : "Hace más calor de lo que prefiere.",
+        precipitacion: lluvia < optP ? "Llueve menos de lo que necesita: conviene contar con riego." : "Llueve más de lo que necesita: cuida el drenaje.",
+        heladas: `Las noches pueden bajar a ${r1(tMin)} °C y la planta se daña por debajo de ${c.frio} °C.`,
+        humedad_suelo: "El suelo guarda poca humedad en esos meses.",
+        suelo_ph: "El pH de tu suelo no es el ideal para este cultivo.",
+        suelo_drenaje: "El drenaje de tu suelo lo limita.",
+      }[limitante];
+    }
+    for (const k in factores) factores[k] = r2(factores[k]);
+    return {
+      id: c.id, cultivo: c.nombre, categoria: c.cat, familia: c.fam, puntaje, etiqueta, mes_siembra_evaluado: mes, duracion_ciclo_dias: c.ciclo,
+      factores, factor_limitante: limitante, explicacion: `${datos} ${consejo}`, observaciones_suelo: observaciones,
+    };
+  }
+
+  function rankingDemo({ lat, lon, mes, suelo, categoria }) {
+    const meses = climaDemo(lat, lon).climatologia.meses;
+    return CULTIVOS.filter((c) => !categoria || c.cat === categoria)
+      .map((c) => {
+        if (mes) return evaluar(c, meses, mes, suelo);
+        let mejor = null; // sin mes: buscar el mejor mes de siembra para cada cultivo
+        for (let m = 1; m <= 12; m++) {
+          const e = evaluar(c, meses, m, suelo);
+          if (!mejor || e.puntaje > mejor.puntaje) mejor = e;
+        }
+        return mejor;
+      })
+      .sort((a, b) => b.puntaje - a.puntaje);
+  }
+
+  function alertasDemo(lat, lon, mes) {
+    const azar = (k) => Math.abs(Math.sin(lat * 12.9898 + lon * 78.233 + k) * 43758.5453) % 1;
+    const clasificar = (pct) =>
+      pct < 10 ? ["Sequía severa", "alta", "ha llovido muchísimo menos de lo habitual"]
+      : pct < 25 ? ["Déficit de lluvia", "moderada", "ha llovido menos de lo habitual"]
+      : pct <= 75 ? ["Lluvia normal", "normal", "ha llovido lo habitual para la época"]
+      : pct <= 90 ? ["Exceso de lluvia", "moderada", "ha llovido más de lo habitual"]
+      : ["Riesgo de inundación", "alta", "ha llovido muchísimo más de lo habitual"];
+    const alertas = [30, 60].map((dias, i) => {
+      const pct = Math.round(5 + 90 * azar(i * 3.7));
+      const [estado, severidad, frase] = clasificar(pct);
+      return { estado: `${estado} (últimos ${dias} días)`, severidad, percentil: pct, mensaje: `En los últimos ${dias} días ${frase}, comparado con los mismos días de los últimos 20 años.` };
+    });
+    const m = climaDemo(lat, lon).climatologia.meses[((mes || 10) - 1) % 12];
+    if (m.t2m_min < 3) alertas.push({ estado: "Noches con riesgo de helada", severidad: "moderada", percentil: null, mensaje: `En ${m.nombre.toLowerCase()} las mínimas rondan ${m.t2m_min} °C. Protege los cultivos sensibles al frío.` });
+    return alertas;
+  }
+
+  const ETIQUETAS_ROTACION = {
+    maiz: [{ color: "rojo", icono: "🔴", texto: "Consumo Excesivo" }, { color: "verde", icono: "🟢", texto: "Generador de Biomasa" }],
+    papa: [{ color: "rojo", icono: "🔴", texto: "Consumo Excesivo" }, { color: "naranja", icono: "🟠", texto: "Riesgo Sanitario" }],
+    quinua: [{ color: "rojo", icono: "🔴", texto: "Extractivo" }, { color: "naranja", icono: "🟠", texto: "Erosión Eólica" }],
+    soya: [{ color: "rojo", icono: "🔴", texto: "Extractivo P/S" }, { color: "azul", icono: "🔵", texto: "Fijador de Nitrógeno" }],
+    frijol: [{ color: "azul", icono: "🔵", texto: "Fijador de Nitrógeno" }, { color: "verde", icono: "🟢", texto: "Cobertura Rápida" }],
+    haba: [{ color: "azul", icono: "🔵", texto: "Fijador de Nitrógeno" }, { color: "morado", icono: "🟣", texto: "Mejorador de Suelo" }],
+    yuca: [{ color: "rojo", icono: "🔴", texto: "Extractivo K" }, { color: "naranja", icono: "🟠", texto: "Suelo Removido" }],
+    arroz: [{ color: "rojo", icono: "🔴", texto: "Extractivo N" }, { color: "rojo", icono: "🔴", texto: "Compactación" }],
+    tomate: [{ color: "rojo", icono: "🔴", texto: "Extractivo Intenso" }, { color: "naranja", icono: "🟠", texto: "Riesgo Sanitario" }],
+    cebolla: [{ color: "rojo", icono: "🔴", texto: "Extractivo Superficial" }, { color: "naranja", icono: "🟠", texto: "Riesgo Sanitario" }],
+    zanahoria: [{ color: "rojo", icono: "🔴", texto: "Extractivo Superficial" }, { color: "naranja", icono: "🟠", texto: "Suelo Removido" }],
+    platano: [{ color: "amarillo", icono: "🟡", texto: "Cultivo Permanente" }, { color: "rojo", icono: "🔴", texto: "Alto Consumo K" }],
+    citricos: [{ color: "amarillo", icono: "🟡", texto: "Cultivo Permanente" }, { color: "naranja", icono: "🟠", texto: "Riesgo de Erosión" }],
+    mani: [{ color: "rojo", icono: "🔴", texto: "Extractivo" }, { color: "naranja", icono: "🟠", texto: "Suelo Removido" }],
+    girasol: [{ color: "verde", icono: "🟢", texto: "Generador de Biomasa" }, { color: "morado", icono: "🟣", texto: "Descompactador" }],
+    abono_verde: [{ color: "verde", icono: "🟢", texto: "Generador de Biomasa" }, { color: "azul", icono: "🔵", texto: "Fijador de Nitrógeno" }, { color: "morado", icono: "🟣", texto: "Recuperador" }],
+  };
+
+  function etiquetasPaso(p) {
+    if (Array.isArray(p.etiquetas) && p.etiquetas.length) return p.etiquetas;
+    if (p.id_cultivo && ETIQUETAS_ROTACION[p.id_cultivo]) return ETIQUETAS_ROTACION[p.id_cultivo];
+    const nom = String(p.nombre || "").toLowerCase();
+    const match = Object.keys(ETIQUETAS_ROTACION).find((k) => nom.includes(k.replace("_", " ")));
+    return match ? ETIQUETAS_ROTACION[match] : [{ color: "verde", icono: "🟢", texto: "Cobertura" }];
+  }
+
+  function rotacionDemo({ lat, lon, mes, suelo }) {
+    const todo = rankingDemo({ lat, lon, mes: mes || 10, suelo });
+    const mejor = (cats, evitar = []) => todo.find((r) => cats.includes(r.categoria) && !evitar.includes(r.familia)) || todo[0];
+    const a = mejor(["cereales", "tuberculos_raices"]);
+    const b = mejor(["legumbres"], [a.familia]);
+    const c = mejor(["hortalizas", "oleaginosas"], [a.familia, b.familia]);
+    const pasos = [
+      [a, "Cultivo principal (exigente en nutrientes)", "Aprovecha la fertilidad acumulada y da la cosecha principal."],
+      [b, "Legumbre que fija nitrógeno", "Devuelve nitrógeno al suelo y corta el ciclo de plagas del cultivo anterior."],
+      [c, "Cultivo de otra familia", "Usa nutrientes de otra profundidad y evita repetir enfermedades."],
+      [{ cultivo: "Abono verde (avena + vicia)", familia: "Mezcla", puntaje: 70, duracion_ciclo_dias: 90 }, "Descanso y regeneración", "Se corta e incorpora al suelo para sumar materia orgánica."],
+    ];
+    let inicio = mes || 10;
+    const ciclo_rotacion = pasos.map(([r, rol, razon], i) => {
+      const fin = ((inicio - 1 + Math.ceil(r.duracion_ciclo_dias / 30) - 1) % 12) + 1;
+      const paso = { ciclo: i + 1, nombre: r.cultivo, familia: r.familia, puntaje_climatico: r.puntaje, rol_agronomico: rol, razon, mes_inicio: inicio, mes_fin: fin };
+      inicio = (fin % 12) + 1;
+      return paso;
+    });
+    const obs = [];
+    if (suelo) {
+      if (suelo.ph != null && suelo.ph < 5.5) obs.push("Suelo ácido: considera aplicar cal agrícola antes de sembrar.");
+      if (suelo.ph != null && suelo.ph > 7.8) obs.push("Suelo alcalino: el compost ayuda a liberar nutrientes.");
+      if (suelo.nitrogeno === "bajo") obs.push("Nitrógeno bajo: por eso la legumbre entra pronto en la rotación.");
+      if (suelo.materia_organica_pct != null && suelo.materia_organica_pct < 2) obs.push("Poca materia orgánica: incorpora rastrojo o compost.");
+      if (suelo.drenaje === "pobre") obs.push("Drenaje pobre: usa camellones o surcos altos.");
+    }
+    return {
+      observaciones_suelo: obs, ciclo_rotacion,
+      beneficios_esperados: ["Menos plagas y enfermedades al alternar familias.", "Menos gasto en fertilizante gracias a la legumbre.", "Suelo con más materia orgánica y mejor retención de agua."],
+    };
+  }
+
+  /* ---------- acceso al backend + consulta directa a NASA POWER API ---------- */
+  const DIAS_MES = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const CODIGOS_MES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  const cacheNasaDirecto = new Map();
+
+  async function pedir(ruta, cuerpo) {
+    const bases = location.protocol.startsWith("http")
+      ? ["", "http://127.0.0.1:8000", "http://localhost:8000"]
+      : ["http://127.0.0.1:8000", "http://localhost:8000"];
+
+    let ultimoError = null;
+    for (const base of bases) {
+      const control = new AbortController();
+      const reloj = setTimeout(() => control.abort(), 12000);
+      try {
+        const res = await fetch(
+          base + ruta,
+          cuerpo
+            ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo), signal: control.signal }
+            : { signal: control.signal }
+        );
+        if (!res.ok) throw new Error("respuesta " + res.status);
+        return await res.json();
+      } catch (e) {
+        ultimoError = e;
+      } finally {
+        clearTimeout(reloj);
+      }
+    }
+    throw ultimoError || new Error("sin servidor local");
+  }
+
+  // Si el backend Python no está encendido (ej. abierto con doble clic o Live Server),
+  // consulta directamente la API oficial de NASA POWER desde el navegador.
+  async function pedirClimaNasaDirecto(lat, lon) {
+    const gridLat = Math.round(lat / 0.5) * 0.5;
+    const gridLon = Math.round(lon / 0.625) * 0.625;
+    const clave = `agronasa_nasa_${gridLat}_${gridLon}`;
+
+    if (cacheNasaDirecto.has(clave)) return cacheNasaDirecto.get(clave);
+    try {
+      const guardado = localStorage.getItem(clave);
+      if (guardado) {
+        const parsed = JSON.parse(guardado);
+        cacheNasaDirecto.set(clave, parsed);
+        return parsed;
+      }
+    } catch {}
+
+    const url = `https://power.larc.nasa.gov/api/temporal/climatology/point?parameters=T2M,T2M_MAX,T2M_MIN,PRECTOTCORR,RH2M,GWETROOT,ALLSKY_SFC_SW_DWN&community=AG&longitude=${gridLon}&latitude=${gridLat}&format=JSON`;
+    const control = new AbortController();
+    const reloj = setTimeout(() => control.abort(), 12000);
+    try {
+      const res = await fetch(url, { signal: control.signal });
+      if (!res.ok) throw new Error("NASA POWER HTTP " + res.status);
+      const json = await res.json();
+      const p = json.properties.parameter;
+      const val = (serie, k, def) => {
+        const v = serie && serie[k];
+        return v === undefined || v === null || v <= -900 ? def : Number(v);
+      };
+
+      const meses = CODIGOS_MES.map((k, i) => {
+        const t2m = r1(val(p.T2M, k, 18));
+        const tMax = r1(val(p.T2M_MAX, k, t2m + 6));
+        const tMinRaw = val(p.T2M_MIN, k, t2m - 6);
+        const tMin = r1((t2m - tMinRaw) > 11.5 ? (0.65 * (t2m - 6) + 0.35 * tMinRaw) : tMinRaw);
+        const precDia = r2(val(p.PRECTOTCORR, k, 1.2));
+        const precMes = r1(precDia * DIAS_MES[i]);
+        const rh2m = r1(val(p.RH2M, k, 60));
+        const gwet = r2(val(p.GWETROOT, k, 0.48));
+        const sw = r1(val(p.ALLSKY_SFC_SW_DWN, k, 18));
+        const fT = limitar((t2m - 2) / 22, 0.2, 1);
+        const fW = 0.65 * gwet + 0.35 * Math.min(1, precDia / 5);
+        const ndvi = r2(limitar((0.10 + 0.78 * fW) * (0.55 + 0.45 * fT), 0.12, 0.85));
+        return {
+          mes_num: i + 1, codigo: k, nombre: MESES[i],
+          t2m, t2m_max: tMax, t2m_min: tMin,
+          precip_mm_dia: precDia, precip_mm_mes: precMes,
+          rh2m, gwetroot: gwet, radiacion_sw: sw, ndvi,
+        };
+      });
+
+      const media = (campo) => meses.reduce((s, m) => s + m[campo], 0) / 12;
+      const resultado = {
+        celda_nasa: [gridLat, gridLon],
+        climatologia: {
+          meses,
+          resumen_anual: {
+            temp_media_c: r1(media("t2m")),
+            temp_max_extrema_c: Math.max(...meses.map((m) => m.t2m_max)),
+            temp_min_extrema_c: Math.min(...meses.map((m) => m.t2m_min)),
+            precip_anual_mm: r1(meses.reduce((s, m) => s + m.precip_mm_mes, 0)),
+            humedad_relativa_media_pct: r1(media("rh2m")),
+            humedad_suelo_media: r2(media("gwetroot")),
+            radiacion_solar_media: r1(media("radiacion_sw")),
+            ndvi_medio: r2(media("ndvi")),
+          },
+        },
+      };
+      cacheNasaDirecto.set(clave, resultado);
+      try { localStorage.setItem(clave, JSON.stringify(resultado)); } catch {}
+      return resultado;
+    } finally {
+      clearTimeout(reloj);
+    }
+  }
+
+  function alertasConClima(clima, mes) {
+    const meses = clima.climatologia.meses;
+    const idx = ((mes || 10) - 1 + 12) % 12;
+    const mActual = meses[idx];
+    const mPrev = meses[(idx + 11) % 12];
+    const gwetPct = Math.round((mActual.gwetroot || 0.5) * 100);
+    const alertas = [];
+
+    if (mActual.gwetroot < 0.36 || mActual.precip_mm_mes < 25) {
+      alertas.push({
+        estado: "Déficit de humedad (NASA POWER)",
+        severidad: mActual.gwetroot < 0.30 ? "alta" : "moderada",
+        percentil: 18,
+        mensaje: `En ${mActual.nombre.toLowerCase()} la lluvia media es de ${Math.round(mActual.precip_mm_mes)} mm y la humedad en zona de raíces (GWETROOT) es del ${gwetPct} %.`,
+      });
+    } else if (mActual.gwetroot > 0.72 || mActual.precip_mm_mes > 170) {
+      alertas.push({
+        estado: "Exceso de humedad (NASA POWER)",
+        severidad: "moderada",
+        percentil: 84,
+        mensaje: `En ${mActual.nombre.toLowerCase()} se registran unos ${Math.round(mActual.precip_mm_mes)} mm/mes y saturación radicular (GWETROOT) del ${gwetPct} %. Cuida el drenaje.`,
+      });
+    } else {
+      alertas.push({
+        estado: "Humedad dentro de lo normal (NASA POWER)",
+        severidad: "normal",
+        percentil: 52,
+        mensaje: `Lluvia habitual en ${mActual.nombre.toLowerCase()}: ${Math.round(mActual.precip_mm_mes)} mm (${Math.round(mActual.precip_mm_mes + mPrev.precip_mm_mes)} mm bimestrales) y humedad radicular del ${gwetPct} %.`,
+      });
+    }
+
+    if (mActual.t2m_min <= 2.5) {
+      alertas.push({
+        estado: "Riesgo de heladas nocturnas",
+        severidad: mActual.t2m_min <= 0 ? "alta" : "moderada",
+        percentil: null,
+        mensaje: `Las mínimas en ${mActual.nombre.toLowerCase()} bajan a ${mActual.t2m_min} °C según NASA POWER. Protege los cultivos sensibles al frío.`,
+      });
+    }
+    return alertas;
+  }
+
+  function rankingConMeses(meses, { mes, suelo, categoria }) {
+    return CULTIVOS.filter((c) => !categoria || c.cat === categoria)
+      .map((c) => {
+        if (mes) return evaluar(c, meses, mes, suelo);
+        let mejor = null;
+        for (let m = 1; m <= 12; m++) {
+          const e = evaluar(c, meses, m, suelo);
+          if (!mejor || e.puntaje > mejor.puntaje) mejor = e;
+        }
+        return mejor;
+      })
+      .sort((a, b) => b.puntaje - a.puntaje);
+  }
+
+  async function consultar({ lat, lon, mes, suelo, categoria }) {
+    // 1. Intentar con el backend FastAPI (/api/recommend y /api/climate)
+    try {
+      const [rec, clima] = await Promise.all([
+        pedir("/api/recommend", {
+          lat,
+          lon,
+          mes_siembra: mes || null,
+          categorias: categoria ? [categoria] : null,
+          suelo: suelo || null,
+        }),
+        pedir(`/api/climate?lat=${lat}&lon=${lon}`),
+      ]);
+      if (!rec.recomendaciones || !clima.climatologia) throw new Error("formato inesperado");
+      const esDemoBackend = String(rec.modo_datos || "").toLowerCase().includes("estimación");
+      return { rec, clima, demo: esDemoBackend };
+    } catch {
+      // 2. Si el backend local no está corriendo, consultar directamente NASA POWER API desde el navegador
+      try {
+        const nasa = await pedirClimaNasaDirecto(lat, lon);
+        const { zona, dist } = zonaCercana(lat, lon);
+        const recs = rankingConMeses(nasa.climatologia.meses, { mes, suelo, categoria });
+        return {
+          demo: false,
+          clima: { climatologia: nasa.climatologia, modo_datos: "NASA POWER API (En vivo)" },
+          rec: {
+            punto: { lat, lon, zona_referencia: dist < 0.85 ? zona.nombre : null, celda_nasa: nasa.celda_nasa },
+            modo_datos: "NASA POWER API (En vivo)",
+            alertas: alertasConClima(nasa, mes),
+            recomendaciones: recs,
+          },
+        };
+      } catch {
+        // 3. Respaldo offline solo si tampoco hay internet hacia NASA POWER
+        const { zona, dist } = zonaCercana(lat, lon);
+        return {
+          demo: true,
+          clima: climaDemo(lat, lon),
+          rec: {
+            punto: { lat, lon, zona_referencia: dist < 1.5 ? zona.nombre : null, celda_nasa: [Math.round(lat * 2) / 2, Math.round(lon / 0.625) * 0.625] },
+            modo_datos: "Datos de ejemplo (sin conexión)",
+            alertas: alertasDemo(lat, lon, mes),
+            recomendaciones: rankingDemo({ lat, lon, mes, suelo, categoria }),
+          },
+        };
+      }
+    }
+  }
+
+  // Probabilidad de lluvia: pronóstico Open-Meteo vía backend; sin backend, Open-Meteo directo; sin red, estimación con la lluvia media del mes.
+  function horasDesdeOpenMeteo(resp, cantidad = 6) {
+    const local = new Date(Date.now() + resp.utc_offset_seconds * 1000);
+    const actual = local.toISOString().slice(0, 13) + ":00";
+    const h = resp.hourly, inicio = h.time.indexOf(actual);
+    if (inicio < 0) return [];
+    return h.time.slice(inicio, inicio + cantidad).map((t, i) => ({
+      hora: t.slice(11, 16),
+      probabilidad_pct: h.precipitation_probability[inicio + i] == null ? null : Math.round(h.precipitation_probability[inicio + i]),
+      temperatura_c: h.temperature_2m[inicio + i] == null ? null : Math.round(h.temperature_2m[inicio + i]),
+      es_de_dia: !!h.is_day[inicio + i],
+    }));
+  }
+
+  async function lluviaDias(lat, lon, meses) {
+    try {
+      const res = await pedir(`/api/rain-probability?lat=${lat}&lon=${lon}&dias=7`);
+      if (!Array.isArray(res.dias)) throw new Error("formato inesperado");
+      return res;
+    } catch {
+      try {
+        const control = new AbortController();
+        const reloj = setTimeout(() => control.abort(), 8000);
+        const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=precipitation_probability_max,precipitation_sum&hourly=precipitation_probability,temperature_2m,is_day&timezone=auto&forecast_days=7`, { signal: control.signal }).finally(() => clearTimeout(reloj));
+        if (!r.ok) throw new Error("Open-Meteo HTTP " + r.status);
+        const resp = await r.json(), d = resp.daily;
+        return {
+          dias: d.time.map((fecha, i) => ({ fecha, probabilidad_pct: d.precipitation_probability_max[i] == null ? null : Math.round(d.precipitation_probability_max[i]), mm_tipico: d.precipitation_sum[i] == null ? 0 : r1(d.precipitation_sum[i]) })),
+          horas: horasDesdeOpenMeteo(resp),
+          base: "Pronóstico de Open-Meteo.com para estas coordenadas",
+          aviso: "Pronóstico meteorológico de Open-Meteo (CC BY 4.0); puede cambiar de un día a otro.",
+        };
+      } catch {}
+      const hoy = new Date();
+      const dias = Array.from({ length: 7 }, (_, i) => {
+        const f = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + i);
+        const m = meses[f.getMonth()];
+        const mmDia = m.precip_mm_dia != null ? m.precip_mm_dia : m.precip_mm_mes / DIAS_MES[f.getMonth()];
+        const fraccion = Math.min(0.9, mmDia / (mmDia + 3));
+        return { fecha: `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, "0")}-${String(f.getDate()).padStart(2, "0")}`, probabilidad_pct: Math.round(fraccion * 100), mm_tipico: r1(mmDia / Math.max(fraccion, 0.05)) };
+      });
+      return { dias, horas: [], base: "Estimación a partir de la lluvia media mensual (sin servidor)", aviso: "Es lo habitual para esa fecha, no un pronóstico." };
+    }
+  }
+
+  async function explorar({ lat, lon, mes, suelo, categoria }) {
+    try {
+      const res = await pedir("/api/explore", { lat, lon, mes_siembra: mes || null, categoria: categoria || null, suelo: suelo || null });
+      if (!res.resultados) throw new Error("formato inesperado");
+      return res.resultados;
+    } catch {
+      try {
+        const nasa = await pedirClimaNasaDirecto(lat, lon);
+        return rankingConMeses(nasa.climatologia.meses, { mes, suelo, categoria });
+      } catch {
+        return rankingDemo({ lat, lon, mes, suelo, categoria });
+      }
+    }
+  }
+
+  async function rotacion({ lat, lon, mes, suelo }) {
+    try {
+      const res = await pedir("/api/rotation", { lat, lon, mes_inicio: mes || 10, suelo });
+      if (!res.ciclo_rotacion) throw new Error("formato inesperado");
+      return { observaciones_suelo: [], beneficios_esperados: [], ...res };
+    } catch {
+      try {
+        const nasa = await pedirClimaNasaDirecto(lat, lon);
+        const todo = rankingConMeses(nasa.climatologia.meses, { mes: mes || 10, suelo });
+        const mejor = (cats, evitar = []) => todo.find((r) => cats.includes(r.categoria) && !evitar.includes(r.familia)) || todo[0];
+        const a = mejor(["cereales", "tuberculos_raices"]);
+        const b = mejor(["legumbres"], [a.familia]);
+        const c = mejor(["hortalizas", "oleaginosas"], [a.familia, b.familia]);
+        const base = rotacionDemo({ lat, lon, mes, suelo });
+        base.ciclo_rotacion[0].nombre = a.cultivo;
+        base.ciclo_rotacion[0].puntaje_climatico = a.puntaje;
+        base.ciclo_rotacion[1].nombre = b.cultivo;
+        base.ciclo_rotacion[1].puntaje_climatico = b.puntaje;
+        base.ciclo_rotacion[2].nombre = c.cultivo;
+        base.ciclo_rotacion[2].puntaje_climatico = c.puntaje;
+        return base;
+      } catch {
+        return rotacionDemo({ lat, lon, mes, suelo });
+      }
+    }
+  }
+
+  /* ---------- ayudas de presentación ---------- */
+  // Nivel de viabilidad a partir de la etiqueta del backend: muy | cuidados | poco | no
+  function nivel(r) {
+    const e = String(r.etiqueta || "").toLowerCase();
+    if (e.includes("muy")) return "muy";
+    if (e.includes("cuidado")) return "cuidados";
+    if (e.includes("poco")) return "poco";
+    if (e) return "no";
+    return r.puntaje >= 75 ? "muy" : r.puntaje >= 55 ? "cuidados" : r.puntaje >= 35 ? "poco" : "no";
+  }
+
+  // Gravedad de una alerta: ok | aviso | peligro
+  function gravedad(a) {
+    const s = `${a.severidad || ""} ${a.estado || ""}`.toLowerCase();
+    if (/sever|alta|inund|crit|rojo|extrem/.test(s)) return "peligro";
+    if (/normal|baja|verde|ok|sin riesgo/.test(s)) return "ok";
+    return "aviso";
+  }
+
+  function nombreLugar(lat, lon, rec) {
+    const ref = rec && rec.punto && rec.punto.zona_referencia;
+    if (ref) return ref;
+    const { zona, dist } = zonaCercana(lat, lon);
+    return dist < 0.3 ? zona.nombre : `${Math.abs(lat).toFixed(2)}° ${lat < 0 ? "S" : "N"}, ${Math.abs(lon).toFixed(2)}° ${lon < 0 ? "O" : "E"}`;
+  }
+
+  function ubicarme() {
+    return new Promise((ok, falla) => {
+      if (!navigator.geolocation) return falla(new Error("Tu navegador no permite obtener la ubicación."));
+      navigator.geolocation.getCurrentPosition(
+        (p) => ok({ lat: +p.coords.latitude.toFixed(4), lon: +p.coords.longitude.toFixed(4) }),
+        () => falla(new Error("No pudimos obtener tu ubicación. Revisa los permisos del navegador o marca el punto en el mapa.")),
+        { timeout: 8000 }
+      );
+    });
+  }
+
+  // Mapa Leaflet con un punto. Si Leaflet no cargó (sin internet), deja un aviso en su lugar.
+  function mapa(el, { lat, lon, alElegir, color = "#1f6f43", zoom = 6 }) {
+    if (!window.L) {
+      el.innerHTML = '<p style="padding:1.5rem;margin:0">El mapa necesita conexión a internet. Puedes elegir una zona de la lista.</p>';
+      return { mover() {}, ajustar() {} };
+    }
+    const m = L.map(el, { scrollWheelZoom: false }).setView([lat, lon], zoom);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "&copy; OpenStreetMap | NASA POWER" }).addTo(m);
+    const punto = L.circleMarker([lat, lon], { radius: 10, color: "#fff", weight: 3, fillColor: color, fillOpacity: 1 }).addTo(m);
+    m.on("click", (e) => {
+      const la = +e.latlng.lat.toFixed(4), lo = +e.latlng.lng.toFixed(4);
+      punto.setLatLng([la, lo]);
+      alElegir(la, lo);
+    });
+    return {
+      mover(la, lo, z) { punto.setLatLng([la, lo]); m.setView([la, lo], z || m.getZoom()); },
+      ajustar() { m.invalidateSize(); },
+    };
+  }
+
+  async function telemetriaIoT({ lat, lon, mes }, meses, celda) {
+    try {
+      const qMes = mes ? `&mes=${mes}` : "";
+      const res = await pedir(`/api/iot/telemetry?lat=${lat}&lon=${lon}${qMes}`);
+      if (res && res.mediciones) return res;
+    } catch {}
+    const idx = ((mes || 10) - 1 + 12) % 12;
+    const m = meses[idx] || meses[0];
+    const seed = Math.abs((lat * 37 + lon * 19) % 1);
+    const delta = r1(1.2 + (seed - 0.5) * 1.4);
+    const tAmb = r1((m.t2m ?? 19) + delta);
+    const tMin = r1((m.t2m_min ?? 8) + delta * 0.6);
+    const hAmb = Math.round(limitar((m.rh2m ?? 55) - delta * 1.8, 20, 95));
+    const tSuelo = r1(tAmb - 2.3);
+    const gwetPct = r1((m.gwetroot ?? 0.45) * 100);
+    const hSuelo = Math.round(limitar(gwetPct - 14, 16, 88));
+    const vVel = Math.round(8 + seed * 9);
+    const dirs = ["NE", "E", "SE", "N", "NO", "SO"];
+    const vDir = dirs[Math.floor(seed * 10) % dirs.length];
+    const ndviNasa = r2(m.ndvi ?? 0.44);
+    const ndviAnt = r2(Math.max(0.18, ndviNasa - 0.14));
+    const ndviAct = r2(Math.min(0.88, Math.max(0.24, ndviNasa + 0.04)));
+    const cobAnt = Math.min(95, Math.round(ndviAnt * 72));
+    const cobAct = Math.min(98, Math.round(ndviAct * 115));
+    const signo = delta >= 0 ? "+" : "";
+    return {
+      origen: "Fusión microclimática LoRaWAN + NASA POWER",
+      mediciones: {
+        temp_ambiente_c: tAmb, temp_min_24h_c: tMin, humedad_ambiente_pct: hAmb,
+        temp_suelo_c: tSuelo, humedad_suelo_pct: hSuelo, viento_velocidad_kmh: vVel, viento_direccion: vDir,
+      },
+      fusion_nasa: {
+        mes_evaluado: m.nombre, nasa_t2m_c: m.t2m, nasa_gwetroot_pct: gwetPct, nasa_ndvi: ndviNasa,
+        delta_t2m_c: delta,
+      },
+      alertas_iot: [
+        hSuelo < 30
+          ? { severidad: "aviso", titulo: "Alerta de parcela · Sonda #02", mensaje: `La humedad del suelo bajó a ${hSuelo} % (umbral: 30 %, GWETROOT satelital: ${Math.round(gwetPct)} %). Confirma en terreno el déficit y prioriza riego.` }
+          : { severidad: "ok", titulo: "Humedad de parcela óptima · Sonda #02", mensaje: `Humedad del suelo en ${hSuelo} % (GWETROOT satelital: ${Math.round(gwetPct)} %). Sin estrés hídrico en raíces.` },
+        {
+          severidad: tMin <= 2.5 ? "peligro" : "ok",
+          titulo: "Satélite NASA POWER + sensores",
+          mensaje: `En la celda NASA [${celda[0]}°, ${celda[1]}°] la media de ${m.nombre.toLowerCase()} es ${m.t2m} °C (GWETROOT ${Math.round(gwetPct)} %, NDVI ${ndviNasa}). Tu microclima está ${signo}${delta} °C respecto al satélite. ${tMin <= 2.5 ? `Riesgo de helada local (mín. ${tMin} °C).` : `Sin riesgo de helada nocturna (mín. ${tMin} °C).`}`,
+        },
+      ],
+      camara_fenologica: {
+        anterior: { fecha: "Hace 20 días", cobertura_verde_pct: cobAnt, ndvi_estimado: ndviAnt, etapa: "Emergencia" },
+        actual: { fecha: "Hoy 12:00", cobertura_verde_pct: cobAct, ndvi_estimado: ndviAct, etapa: ndviAct >= 0.42 ? "Crecimiento vigoroso" : "Desarrollo inicial" },
+      },
+    };
+  }
+
+  window.Agro = {
+    MESES, FACTORES, CATEGORIAS, CATEGORIAS_FILTRO, ZONAS,
+    consultar, explorar, rotacion, lluviaDias, telemetriaIoT, etiquetasPaso,
+    nivel, gravedad, nombreLugar, ubicarme, mapa, esc,
+    icono: (r) => ICONOS[r.id] || ICONOS_CAT[r.categoria] || "🌱",
+    factor: (k) => FACTORES[k] || k,
+    categoria: (k) => CATEGORIAS[k] || k,
+  };
+})();
+</script>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const { MESES, ZONAS, esc } = Agro;
+    const estado = { lat: ZONAS[0].lat, lon: ZONAS[0].lon, mes: ZONAS[0].mes, suelo: null, categoria: "" };
+    let turno = 0;
+
+    const mapa = Agro.mapa($("mapa"), {
+      lat: estado.lat, lon: estado.lon, color: "#2c8a4f",
+      alElegir(lat, lon) { Object.assign(estado, { lat, lon }); actualizar(); },
+    });
+
+    /* ——— menú desplegable: se guarda y se saca ——— */
+    function desplegar(abierto, conFoco) {
+      document.body.classList.toggle("menu-cerrado", !abierto);
+      for (const id of ["abrir", "guardar", "asa"]) $(id).setAttribute("aria-expanded", abierto);
+      $("asa").textContent = abierto ? "Bajar para ver el mapa" : "Subir las recomendaciones";
+      if (conFoco) (abierto ? $("guardar") : $("abrir")).focus({ preventScroll: true });
+    }
+    $("guardar").addEventListener("click", () => desplegar(false, true));
+    $("abrir").addEventListener("click", () => desplegar(true, true));
+    $("asa").addEventListener("click", () => desplegar(document.body.classList.contains("menu-cerrado")));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !document.body.classList.contains("menu-cerrado") && matchMedia("(min-width: 48.01rem)").matches) desplegar(false, true); });
+
+    /* ——— agrandar el menú arrastrando su borde derecho (solo hacia el costado) ——— */
+    const tirador = $("tirador"), raiz = document.documentElement;
+    const REM = parseFloat(getComputedStyle(raiz).fontSize) || 16, ANCHO_BASE = 26.5 * REM;
+    const limites = () => { const min = 20 * REM; return [min, Math.max(min, Math.min(innerWidth * 0.75, innerWidth - 12 * REM))]; };
+    function fijarAncho(px, recordar) {
+      const [min, max] = limites();
+      px = Math.round(Math.max(min, Math.min(max, px)));
+      raiz.style.setProperty("--ancho-menu", px + "px");
+      tirador.setAttribute("aria-valuemin", Math.round(min));
+      tirador.setAttribute("aria-valuemax", Math.round(max));
+      tirador.setAttribute("aria-valuenow", px);
+      if (recordar) { try { localStorage.setItem("agronasa-ancho-menu", px); } catch {} }
+      return px;
+    }
+    let ultimoToque = 0;
+    const anchoActual = () => parseFloat(raiz.style.getPropertyValue("--ancho-menu")) || ANCHO_BASE;
+    tirador.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      // dos toques seguidos: volver al tamaño original
+      if (e.timeStamp - ultimoToque < 400) { ultimoToque = 0; fijarAncho(ANCHO_BASE, true); return; }
+      ultimoToque = e.timeStamp;
+      tirador.setPointerCapture(e.pointerId);
+      document.body.classList.add("arrastrando");
+      const izquierda = $("menu").getBoundingClientRect().left;
+      const mover = (ev) => { ultimoToque = 0; fijarAncho(ev.clientX - izquierda); }; // si hubo arrastre, no cuenta como doble toque
+      const soltar = () => {
+        document.body.classList.remove("arrastrando");
+        tirador.removeEventListener("pointermove", mover);
+        fijarAncho(anchoActual(), true);
+      };
+      tirador.addEventListener("pointermove", mover);
+      tirador.addEventListener("pointerup", soltar, { once: true });
+      tirador.addEventListener("pointercancel", soltar, { once: true });
+    });
+    tirador.addEventListener("keydown", (e) => {
+      const [min, max] = limites();
+      const destino = { ArrowRight: anchoActual() + 32, ArrowLeft: anchoActual() - 32, Home: min, End: max }[e.key];
+      if (destino == null) return;
+      e.preventDefault();
+      fijarAncho(destino, true);
+    });
+    window.addEventListener("resize", () => fijarAncho(anchoActual()));
+    let anchoGuardado = null;
+    try { anchoGuardado = parseFloat(localStorage.getItem("agronasa-ancho-menu")); } catch {}
+    fijarAncho(anchoGuardado || ANCHO_BASE);
+
+    // El menú y los botones de zona se colocan debajo del encabezado según su altura real.
+    const cabClima = $("clima-cab");
+    const ubicarBajoClima = () => raiz.style.setProperty("--bajo-clima", Math.ceil(cabClima.getBoundingClientRect().bottom + 0.75 * REM) + "px");
+    if (window.ResizeObserver) new ResizeObserver(ubicarBajoClima).observe(cabClima);
+    window.addEventListener("resize", ubicarBajoClima);
+    ubicarBajoClima();
+
+    $("mas-clima").addEventListener("click", () => {
+      const abierto = $("clima-detalle").hidden;
+      $("clima-detalle").hidden = !abierto;
+      $("mas-clima").setAttribute("aria-expanded", abierto);
+      $("mas-clima").firstChild.textContent = abierto ? "Ver menos " : "Ver más ";
+    });
+
+    // Acordeón: al abrir una sección se cierran las otras (respaldo para navegadores sin <details name>).
+    const secciones = [...document.querySelectorAll(".seccion")];
+    secciones.forEach((s) => s.addEventListener("toggle", () => { if (s.open) secciones.forEach((o) => { if (o !== s) o.open = false; }); }));
+
+    /* ——— zonas y mes ——— */
+    $("zonas").innerHTML = ZONAS.map((z) => `<button class="pastilla" type="button" data-zona="${z.id}" aria-pressed="false">${esc(z.corto)}</button>`).join("")
+      + '<button class="pastilla" type="button" id="ubicarme">📍 Mi ubicación</button>';
+    $("zonas").addEventListener("click", async (e) => {
+      const b = e.target.closest(".pastilla");
+      if (!b) return;
+      if (b.id === "ubicarme") {
+        try { Object.assign(estado, await Agro.ubicarme()); mapa.mover(estado.lat, estado.lon, 9); }
+        catch (err) { $("coords").textContent = err.message; return; }
+      } else {
+        const z = ZONAS.find((x) => x.id === b.dataset.zona);
+        Object.assign(estado, { lat: z.lat, lon: z.lon, mes: z.mes });
+        mapa.mover(z.lat, z.lon, 7);
+      }
+      actualizar();
+    });
+
+    // Las flechas dan la vuelta al año; entre diciembre y enero está «el mejor mes».
+    function moverMes(d) {
+      const orden = [null, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+      estado.mes = orden[(orden.indexOf(estado.mes) + d + orden.length) % orden.length];
+      actualizar();
+    }
+    $("mes-antes").addEventListener("click", () => moverMes(-1));
+    $("mes-despues").addEventListener("click", () => moverMes(1));
+
+    $("tipo").innerHTML = '<option value="">Todos</option>' + Agro.CATEGORIAS_FILTRO.map((c) => `<option value="${c}">${esc(Agro.categoria(c))}</option>`).join("");
+    $("tipo").addEventListener("change", (e) => { estado.categoria = e.target.value; actualizar(); });
+
+    $("suelo").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const num = (id) => { const v = parseFloat($(id).value); return isNaN(v) ? null : v; };
+      estado.suelo = { ph: num("f-ph"), materia_organica_pct: num("f-mo"), textura: $("f-textura").value, drenaje: $("f-drenaje").value, nitrogeno: $("f-n").value };
+      actualizar();
+    });
+
+    /* ——— contenido ——— */
+    function pintarCultivos(items) {
+      const buenos = items.filter((r) => Agro.nivel(r) === "muy").length;
+      $("r-cultivos").textContent = items.length ? `${buenos} muy viables de ${items.length}` : "Sin cultivos de este tipo";
+      $("cultivos").innerHTML = items.map((r) => {
+        const n = Agro.nivel(r);
+        return `<details class="cultivo" data-nivel="${n}">
+          <summary>
+            <span class="dib" aria-hidden="true">${Agro.icono(r)}</span>
+            <div><h3>${esc(r.cultivo)}</h3><span class="sub">${r.mes_siembra_evaluado ? "Siembra en " + MESES[r.mes_siembra_evaluado - 1].toLowerCase() : esc(Agro.categoria(r.categoria))}${r.duracion_ciclo_dias ? " · " + Math.round(r.duracion_ciclo_dias / 30) + " meses" : ""}</span></div>
+            <span class="luz"><b>${r.puntaje}</b>${esc(r.etiqueta)}</span>
+          </summary>
+          <div class="porque">
+            <p>${esc(r.explicacion)}</p>
+            ${r.observaciones_suelo && r.observaciones_suelo.length ? `<p class="nota"><strong>Tu suelo:</strong> ${esc(r.observaciones_suelo.join(" "))}</p>` : ""}
+            ${Object.entries(r.factores || {}).map(([k, v]) => { const pct = Math.round(v * 100), t = pct >= 75 ? "alto" : pct >= 45 ? "medio" : "bajo"; return `<div class="factor"><span>${esc(Agro.factor(k))}</span><span class="tubo"><i data-n="${t}" style="width:${Math.max(pct, 5)}%"></i></span><span>${{ alto: "Bien", medio: "Regular", bajo: "Mal" }[t]}</span></div>`; }).join("")}
+          </div>
+        </details>`;
+      }).join("") || "<p>No hay cultivos de este tipo.</p>";
+    }
+
+    async function actualizar() {
+      const mio = ++turno;
+      const { rec, clima, demo } = await Agro.consultar(estado);
+      if (mio !== turno) return;
+      const items = estado.categoria
+        ? (rec.recomendaciones || []).filter((r) => r.categoria === estado.categoria)
+        : (rec.recomendaciones || []);
+      const a = clima.climatologia.resumen_anual, meses = clima.climatologia.meses;
+      const celda = (rec.punto && rec.punto.celda_nasa) || [Math.round(estado.lat * 2) / 2, Math.round(estado.lon / 0.625) * 0.625];
+
+      document.querySelectorAll("[data-zona]").forEach((b) => { const z = ZONAS.find((x) => x.id === b.dataset.zona); b.setAttribute("aria-pressed", z.lat === estado.lat && z.lon === estado.lon); });
+      $("demo").hidden = false;
+      $("demo").textContent = demo ? "Datos de ejemplo" : "🛰️ NASA POWER";
+      $("demo").style.background = demo ? "var(--medio)" : "var(--bien)";
+
+      $("lugar").textContent = Agro.nombreLugar(estado.lat, estado.lon, rec);
+      $("coords").textContent = `${estado.lat.toFixed(2)}°, ${estado.lon.toFixed(2)}° · Celda NASA [${celda[0]}°, ${celda[1]}°]${estado.suelo ? " · ajustado a tu suelo" : ""}`;
+      $("datos").innerHTML = [
+        [a.temp_media_c + " °C", "media anual (T2M)"],
+        [Math.round(a.precip_anual_mm) + " mm", "lluvia/año"],
+        [a.temp_min_extrema_c + " °C", "mínima (T2M_MIN)"],
+      ].map(([v, t]) => `<div class="dato"><b>${v}</b><span>${t}</span></div>`).join("");
+      $("mes").textContent = estado.mes ? MESES[estado.mes - 1] : "El mejor mes";
+
+      pintarCultivos(items);
+
+      const GRADO = { ok: ["Normal", "✅"], aviso: ["Atención", "⚠️"], peligro: ["Alerta", "🚨"] };
+      const alertas = rec.alertas || [], serias = alertas.filter((al) => Agro.gravedad(al) !== "ok").length;
+      $("r-clima").textContent = !alertas.length ? "Sin avisos" : serias ? `${serias} ${serias === 1 ? "aviso para revisar" : "avisos para revisar"}` : "Todo normal";
+      $("avisos").innerHTML = alertas.map((al) => { const g = Agro.gravedad(al); return `<div class="aviso" data-g="${g}"><span class="ico" aria-hidden="true">${GRADO[g][1]}</span><div><h3>${GRADO[g][0]}: ${esc(al.estado)}</h3><p>${esc(al.mensaje)}</p></div></div>`; }).join("") || "<p>Sin avisos para esta zona.</p>";
+
+      Agro.lluviaDias(estado.lat, estado.lon, meses).then((ll) => {
+        if (mio !== turno) return;
+        const NOMBRES = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+        const icono = (pct, dia) => pct == null ? "·" : pct >= 60 ? "🌧️" : pct >= 30 ? "🌦️" : dia ? "☀️" : "🌙";
+        const horas = ll.horas || [];
+        $("lluvia-horas").hidden = !horas.length;
+        $("lluvia-horas").innerHTML = horas.map((h, i) => `<div title="${h.probabilidad_pct == null ? "Sin datos" : h.probabilidad_pct + " % de probabilidad de lluvia a las " + h.hora}"><span class="${i === 0 ? "ahora" : ""}">${i === 0 ? "Ahora" : h.hora}</span><span class="ico" aria-hidden="true">${icono(h.probabilidad_pct, h.es_de_dia)}</span><b>${h.probabilidad_pct == null ? "—" : h.probabilidad_pct + "%"}</b><span>${h.temperatura_c == null ? "" : h.temperatura_c + "°"}</span></div>`).join("");
+        // con el medidor por hora, "hoy" ya está cubierto: los días empiezan mañana
+        const dias = horas.length ? ll.dias.slice(1) : ll.dias;
+        const celdasDias = dias.map((d, i) => {
+          const pct = d.probabilidad_pct, f = new Date(d.fecha + "T12:00:00"), esHoy = !horas.length && i === 0;
+          return `<div class="${esHoy ? "hoy" : ""}" title="${pct == null ? "Sin datos" : `${pct} % de probabilidad · ${d.mm_tipico} mm esperados`}"><span>${esHoy ? "hoy" : NOMBRES[f.getDay()] + " " + f.getDate()}</span><span class="gota" aria-hidden="true"><i style="height:${pct || 0}%;--p:${pct || 0}%"></i></span><b>${pct == null ? "—" : pct + "%"}</b></div>`;
+        }).join("");
+        $("lluvia-dias").innerHTML = celdasDias;
+        $("lluvia-dias-detalle").innerHTML = celdasDias;
+        $("lluvia-base").textContent = `${ll.base}. ${ll.aviso}`;
+      });
+      const max = Math.max(...meses.map((m) => m.precip_mm_mes), 1);
+      $("anio").innerHTML = meses.map((m, i) => `<div class="${estado.mes === i + 1 ? "siembra" : ""}" title="${MESES[i]}: ${m.precip_mm_mes} mm, T2M ${m.t2m} °C, Hum. suelo ${Math.round((m.gwetroot || 0.5) * 100)} %">${Math.round(m.precip_mm_mes)}<i style="height:${Math.round((m.precip_mm_mes / max) * 58)}%"></i><b>${MESES[i][0]}</b>${Math.round(m.t2m)}°</div>`).join("");
+
+      const rhMedia = a.humedad_relativa_media_pct ?? Math.round(meses.reduce((s, m) => s + (m.rh2m || 60), 0) / 12);
+      const gwetMediaPct = Math.round((a.humedad_suelo_media ?? (meses.reduce((s, m) => s + (m.gwetroot || 0.5), 0) / 12)) * 100);
+      const swMedia = a.radiacion_solar_media ?? Math.round((meses.reduce((s, m) => s + (m.radiacion_sw || 18), 0) / 12) * 10) / 10;
+      const ndviMedio = a.ndvi_medio ?? 0.45;
+      if ($("datos-nasa-clima")) {
+        $("datos-nasa-clima").innerHTML = [
+          [gwetMediaPct + " %", "hum. raíces (GWETROOT)"],
+          [rhMedia + " %", "hum. aire (RH2M)"],
+          [swMedia + " MJ/m²", "radiación (SW_DWN)"],
+        ].map(([v, t]) => `<div class="dato"><b>${v}</b><span>${t}</span></div>`).join("");
+      }
+
+      Agro.telemetriaIoT(estado, meses, celda).then((iot) => {
+        if (mio !== turno || !iot) return;
+        const med = iot.mediciones;
+        if ($("r-iot")) $("r-iot").textContent = iot.origen || "IoT LoRaWAN + NASA POWER";
+        if ($("iot-alertas") && Array.isArray(iot.alertas_iot)) {
+          const ICO_IOT = { ok: "🛰️", aviso: "⚠️", peligro: "🚨" };
+          $("iot-alertas").innerHTML = iot.alertas_iot.map((al) => {
+            const g = al.severidad === "peligro" ? "peligro" : al.severidad === "aviso" ? "aviso" : "ok";
+            return `<div class="aviso" data-g="${g}"><span class="ico" aria-hidden="true">${ICO_IOT[g]}</span><div><h3>${esc(al.titulo)}</h3><p>${esc(al.mensaje)}</p></div></div>`;
+          }).join("");
+        }
+        if ($("iot-sensores") && med) {
+          const helada = med.temp_min_24h_c <= 2.5;
+          const seco = med.humedad_suelo_pct < 30;
+          const hongos = med.humedad_ambiente_pct >= 78;
+          const vientoFuerte = med.viento_velocidad_kmh >= 15;
+          const germina = med.temp_suelo_c >= 12 && med.temp_suelo_c <= 28;
+          $("iot-sensores").innerHTML = `
+            <div class="sensor ${helada ? "seco" : ""}"><span>🌡️ Temp. ambiente</span><b>${esc(med.temp_ambiente_c)} °C</b><strong>${helada ? `⚠️ Riesgo helada (mín. ${esc(med.temp_min_24h_c)} °C)` : `✓ Sin helada (mín. ${esc(med.temp_min_24h_c)} °C)`}</strong><span>Nodo #01 · hace 4 min</span></div>
+            <div class="sensor ${hongos ? "seco" : ""}"><span>💧 Humedad ambiente</span><b>${esc(Math.round(med.humedad_ambiente_pct))} %</b><strong>${hongos ? "⚠️ Vigilar hongos foliares" : "✓ Riesgo de hongos bajo"}</strong><span>Nodo #01 · hace 4 min</span></div>
+            <div class="sensor"><span>🌱 Temp. del suelo</span><b>${esc(med.temp_suelo_c)} °C</b><strong>${germina ? "✓ Óptima para germinar" : "ℹ️ Crecimiento radicular lento"}</strong><span>Sonda #02 · hace 12 min</span></div>
+            <div class="sensor ${seco ? "seco" : ""}"><span>🌊 Humedad del suelo</span><b>${esc(Math.round(med.humedad_suelo_pct))} %</b><strong>${seco ? "⚠️ Suelo seco: regar hoy" : "✓ Humedad radicular adecuada"}</strong><span>Sonda #02 · hace 12 min</span></div>
+            <div class="sensor ${vientoFuerte ? "seco" : ""}"><span>🧭 Viento</span><b>↗ ${esc(med.viento_direccion)} · ${esc(Math.round(med.viento_velocidad_kmh))} km/h</b><strong>${vientoFuerte ? "⚠️ Deriva: evitar fumigar" : "✓ Apto para fumigar"}</strong><span>Veleta #01 · hace 4 min</span></div>
+          `;
+        }
+        if (iot.camara_fenologica && iot.camara_fenologica.anterior && iot.camara_fenologica.actual) {
+          const ant = iot.camara_fenologica.anterior, act = iot.camara_fenologica.actual;
+          const diff = Math.round(act.cobertura_verde_pct - ant.cobertura_verde_pct);
+          const signoDiff = diff >= 0 ? `+${diff} %` : `${diff} %`;
+          if ($("iot-foto-ant-tit")) $("iot-foto-ant-tit").textContent = `${ant.fecha} · verde ${Math.round(ant.cobertura_verde_pct)} %`;
+          if ($("iot-foto-ant-sub")) $("iot-foto-ant-sub").textContent = `${ant.etapa} · NDVI ${ant.ndvi_estimado}`;
+          if ($("iot-foto-act-tit")) $("iot-foto-act-tit").textContent = `${act.fecha} · verde ${Math.round(act.cobertura_verde_pct)} % (${signoDiff})`;
+          if ($("iot-foto-act-sub")) $("iot-foto-act-sub").textContent = `${act.etapa} · NDVI ${act.ndvi_estimado}`;
+        }
+      });
+
+      if (estado.suelo) {
+        const plan = await Agro.rotacion(estado);
+        if (mio !== turno) return;
+        $("r-suelo").textContent = "Ajustado a tu suelo · rotación lista";
+        const sueloTags = [];
+        if (estado.suelo.ph != null) {
+          sueloTags.push(estado.suelo.ph < 5.5 ? { color: "naranja", icono: "🟠", texto: `pH ácido (${estado.suelo.ph})` } : estado.suelo.ph > 7.8 ? { color: "naranja", icono: "🟠", texto: `pH alcalino (${estado.suelo.ph})` } : { color: "verde", icono: "🟢", texto: `pH ${estado.suelo.ph}` });
+        }
+        if (estado.suelo.materia_organica_pct != null) {
+          sueloTags.push(estado.suelo.materia_organica_pct < 2 ? { color: "rojo", icono: "🔴", texto: `MO baja (${estado.suelo.materia_organica_pct}%)` } : { color: "verde", icono: "🟢", texto: `MO ${estado.suelo.materia_organica_pct}%` });
+        }
+        if (estado.suelo.nitrogeno === "bajo") sueloTags.push({ color: "azul", icono: "🔵", texto: "Requiere Fijador N" });
+        if (estado.suelo.drenaje === "pobre") sueloTags.push({ color: "morado", icono: "🟣", texto: "Usar Camellones" });
+
+        $("plan").innerHTML = `<h3 style="font-size:1.1rem;font-weight:800;margin-top:.4rem">Rotación sugerida</h3>
+          ${sueloTags.length ? `<div class="leyenda-rot">${sueloTags.map((t) => `<span class="etiqueta-rot" data-c="${esc(t.color)}">${t.icono} ${esc(t.texto)}</span>`).join("")}</div>` : ""}
+          <ol class="pasos">${plan.ciclo_rotacion.map((p) => {
+            const tags = Agro.etiquetasPaso ? Agro.etiquetasPaso(p) : (p.etiquetas || []);
+            return `<li><div>
+              <div class="paso-cab"><strong>${esc(p.nombre)}</strong>${p.mes_inicio ? `<small>${MESES[p.mes_inicio - 1].slice(0, 3)}–${MESES[p.mes_fin - 1].slice(0, 3)}</small>` : ""}${p.puntaje_climatico != null ? `<span class="etiqueta-rot" data-c="verde">${esc(p.puntaje_climatico)}/100</span>` : ""}</div>
+              <div class="paso-tags">${tags.map((t) => `<span class="etiqueta-rot" data-c="${esc(t.color)}">${t.icono} ${esc(t.texto)}</span>`).join("")}</div>
+            </div></li>`;
+          }).join("")}</ol>`;
+      }
+    }
+
+    actualizar();
+  </script>
+</body>
+</html>

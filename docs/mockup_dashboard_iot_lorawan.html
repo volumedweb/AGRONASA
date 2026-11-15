@@ -1,0 +1,833 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mockup Dashboard IoT LoRaWAN — Sensores en Campo (AgroNASA)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #08101a;
+      --bg-card: #101d2d;
+      --bg-input: #0b1522;
+      --border: #1e3450;
+      --text: #eff6ff;
+      --text-muted: #93acc8;
+      --primary: #22c55e;
+      --lora: #a855f7;
+      --nasa: #38bdf8;
+      --amber: #f59e0b;
+      --red: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 3rem;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0b1726 0%, #162942 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 1rem 1.5rem;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-inner {
+      max-width: 1320px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #22c55e, #a855f7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+    }
+
+    .brand h1 {
+      font-size: 1.2rem;
+      font-weight: 800;
+    }
+
+    .brand p {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .badges-right {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .pill-lora {
+      background: rgba(168, 85, 247, 0.15);
+      border: 1px solid rgba(168, 85, 247, 0.4);
+      color: #d8b4fe;
+    }
+
+    .pill-live {
+      background: rgba(34, 197, 94, 0.15);
+      border: 1px solid rgba(34, 197, 94, 0.4);
+      color: #4ade80;
+    }
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 8px #22c55e;
+    }
+
+    .container {
+      max-width: 1320px;
+      margin: 1.5rem auto 0;
+      padding: 0 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* Local Alerts Strip */
+    .local-alerts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 860px) {
+      .local-alerts {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .alert-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-left: 5px solid var(--amber);
+      border-radius: 12px;
+      padding: 0.9rem 1.1rem;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .alert-box.info {
+      border-left-color: var(--nasa);
+    }
+
+    /* 5 Sensor Cards Grid */
+    .sensors-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 1rem;
+    }
+
+    @media (max-width: 1150px) {
+      .sensors-grid {
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      }
+    }
+
+    .sensor-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.1rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 0.65rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sensor-card.warning {
+      border-color: rgba(245, 158, 11, 0.55);
+    }
+
+    .sensor-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .freq-tag {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      font-size: 0.68rem;
+      color: #cbd5e1;
+    }
+
+    .sensor-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+    }
+
+    .sensor-unit {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .sensor-status {
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    .sensor-footer {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      padding-top: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Two Column Layout */
+    .mid-grid {
+      display: grid;
+      grid-template-columns: 1.25fr 0.75fr;
+      gap: 1.25rem;
+    }
+
+    @media (max-width: 980px) {
+      .mid-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.25rem;
+    }
+
+    .card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .card-title {
+      font-size: 1.02rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .range-tabs {
+      display: flex;
+      gap: 0.35rem;
+      background: var(--bg-input);
+      padding: 0.25rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+
+    .range-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 0.35rem 0.7rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .range-btn.active {
+      background: var(--primary);
+      color: #05200e;
+    }
+
+    .chart-container {
+      height: 270px;
+      width: 100%;
+      position: relative;
+    }
+
+    /* Daily Camera Compare */
+    .camera-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.85rem;
+    }
+
+    .photo-frame {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .photo-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.74rem;
+      font-weight: 600;
+    }
+
+    /* Table & Architecture */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+
+    th, td {
+      padding: 0.7rem 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-size: 0.73rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    .battery-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .battery-track {
+      width: 48px;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .battery-fill {
+      height: 100%;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">📡</div>
+        <div>
+          <h1>AgroNASA · Apartado "Sensores en Campo" (Módulo IoT LoRaWAN)</h1>
+          <p>Monitoreo microclimático de parcela en tiempo real + Cámara fenológica diaria (Complemento al satélite NASA POWER)</p>
+        </div>
+      </div>
+      <div class="badges-right">
+        <span class="pill pill-lora">📻 Red LoRaWAN Sin Licencia (Alcance 5 km)</span>
+        <span class="pill pill-live"><span class="pulse-dot"></span> Gateway Solar Activo · Parcela #01 (Cochabamba)</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- 1. Alertas locales en tiempo real -->
+    <section class="local-alerts">
+      <div class="alert-box">
+        <div>
+          <div style="font-size:0.75rem;font-weight:700;color:var(--amber);text-transform:uppercase;">
+            ⚠️ Alerta Local de Parcela · Sonda Capacitiva #02
+          </div>
+          <div style="font-weight:700;margin-top:0.2rem;">
+            Humedad del suelo cayó a 26% (Umbral mínimo para Maíz en floración: 32%)
+          </div>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem;">
+            Coincide con la alerta satelital NASA POWER (déficit de lluvia, percentil 18). Se recomienda aplicar riego ligero esta tarde.
+          </p>
+        </div>
+        <span class="freq-tag">Hace 4 min</span>
+      </div>
+
+      <div class="alert-box info">
+        <div>
+          <div style="font-size:0.75rem;font-weight:700;color:var(--nasa);text-transform:uppercase;">
+            🛰️ + 📡 Fusión Satélite NASA vs. Sensores en Terreno
+          </div>
+          <div style="font-weight:700;margin-top:0.2rem;">
+            Microclima local detectado: +1.8 °C respecto a la celda NASA POWER (0.5° × 0.625°)
+          </div>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem;">
+            La ladera protege a la parcela de heladas nocturnas (mínima medida en campo: 8.4 °C vs. 6.6 °C estimada regionalmente).
+          </p>
+        </div>
+        <span class="freq-tag">Validado</span>
+      </div>
+    </section>
+
+    <!-- 2. Las 5 Variables de Sensores en Campo -->
+    <section class="sensors-grid">
+      <!-- Temp Ambiente -->
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <span>🌡️ Temp. Ambiente</span>
+          <span class="freq-tag">Cada 15 min</span>
+        </div>
+        <div class="sensor-value">
+          22.4 <span class="sensor-unit">°C</span>
+        </div>
+        <div class="sensor-status" style="color:#4ade80;">
+          ✓ Sin riesgo de helada ni golpe de calor
+        </div>
+        <div class="sensor-footer">
+          <span>Mín hoy: 8.4 °C · Máx: 25.1 °C</span>
+          <span>Nodo #01 (hace 4m)</span>
+        </div>
+      </div>
+
+      <!-- Humedad Ambiente -->
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <span>💧 Humedad Ambiente</span>
+          <span class="freq-tag">Cada 15 min</span>
+        </div>
+        <div class="sensor-value">
+          54 <span class="sensor-unit">%</span>
+        </div>
+        <div class="sensor-status" style="color:#4ade80;">
+          ✓ Riesgo de hongos bajo (&lt;75%)
+        </div>
+        <div class="sensor-footer">
+          <span>Evapotranspiración moderada</span>
+          <span>Nodo #01 (hace 4m)</span>
+        </div>
+      </div>
+
+      <!-- Temp Suelo -->
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <span>🌱 Temp. del Suelo</span>
+          <span class="freq-tag">Cada 30 min</span>
+        </div>
+        <div class="sensor-value">
+          18.9 <span class="sensor-unit">°C</span>
+        </div>
+        <div class="sensor-status" style="color:#38bdf8;">
+          ✓ Ideal para germinación y raíces
+        </div>
+        <div class="sensor-footer">
+          <span>Sonda enterrada a 15 cm</span>
+          <span>Nodo #02 (hace 12m)</span>
+        </div>
+      </div>
+
+      <!-- Humedad Suelo -->
+      <div class="sensor-card warning">
+        <div class="sensor-top">
+          <span style="color:var(--amber);">🌊 Humedad del Suelo</span>
+          <span class="freq-tag">Cada 30 min</span>
+        </div>
+        <div class="sensor-value" style="color:var(--amber);">
+          26 <span class="sensor-unit">%</span>
+        </div>
+        <div class="sensor-status" style="color:var(--amber);">
+          ⚠️ Suelo seco — Programar riego
+        </div>
+        <div class="sensor-footer">
+          <span>Sonda capacitiva (Óptimo: 40–65%)</span>
+          <span>Nodo #02 (hace 12m)</span>
+        </div>
+      </div>
+
+      <!-- Direccion del Viento -->
+      <div class="sensor-card">
+        <div class="sensor-top">
+          <span>🧭 Dirección del Viento</span>
+          <span class="freq-tag">Cada 15 min</span>
+        </div>
+        <div class="sensor-value">
+          ↗ NE <span class="sensor-unit">45° (11 km/h)</span>
+        </div>
+        <div class="sensor-status" style="color:#4ade80;">
+          ✓ Ventana segura para fumigar
+        </div>
+        <div class="sensor-footer">
+          <span>Veleta · Avance desde el valle</span>
+          <span>Nodo #01 (hace 4m)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Gráficos de Tendencias + Cámara Diaria del Terreno -->
+    <section class="mid-grid">
+      <!-- Tendencias -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📈 Tendencias de Sensores en Campo</div>
+          <div class="range-tabs">
+            <button class="range-btn active" onclick="updateTrendChart('dia', this)">Día (24h)</button>
+            <button class="range-btn" onclick="updateTrendChart('semana', this)">Semana (7d)</button>
+            <button class="range-btn" onclick="updateTrendChart('mes', this)">Mes (30d)</button>
+          </div>
+        </div>
+        <p style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.8rem;">
+          Monitoreo continuo de temperatura de aire/suelo y caída progresiva de humedad del suelo para decidir el momento exacto de riego.
+        </p>
+        <div class="chart-container">
+          <canvas id="iotTrendChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Cámara diaria -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📸 Cámara Diaria del Terreno (1 foto/día · 12:00)</div>
+          <span class="pill" style="background:rgba(56,189,248,0.15);color:#38bdf8;border:1px solid rgba(56,189,248,0.35);">
+            Canal 4G/LTE (Fuera de LoRaWAN)
+          </span>
+        </div>
+        <p style="font-size:0.79rem;color:var(--text-muted);margin-bottom:0.8rem;">
+          Compara visualmente dos fechas desde el mismo punto fijo y valida el índice de cobertura verde local frente al NDVI satelital de MODIS.
+        </p>
+
+        <div class="camera-compare">
+          <div class="photo-frame">
+            <div class="photo-meta">
+              <span>📅 25 Octubre (12:00)</span>
+              <span style="color:var(--text-muted);">Cobertura: 24%</span>
+            </div>
+            <svg viewBox="0 0 260 130" style="width:100%;border-radius:8px;border:1px solid var(--border);">
+              <rect width="260" height="45" fill="#1e3a5f" />
+              <polygon points="0,45 65,20 135,42 205,15 260,45" fill="#2b4c75" />
+              <rect y="45" width="260" height="85" fill="#5c4033" />
+              <!-- Surcos -->
+              <line x1="20" y1="130" x2="95" y2="48" stroke="#473025" stroke-width="4" />
+              <line x1="90" y1="130" x2="125" y2="48" stroke="#473025" stroke-width="4" />
+              <line x1="170" y1="130" x2="155" y2="48" stroke="#473025" stroke-width="4" />
+              <line x1="240" y1="130" x2="185" y2="48" stroke="#473025" stroke-width="4" />
+              <!-- Plántulas pequeñas -->
+              <g fill="#22c55e">
+                <circle cx="55" cy="92" r="5" /><circle cx="78" cy="68" r="4" />
+                <circle cx="106" cy="92" r="5" /><circle cx="116" cy="68" r="4" />
+                <circle cx="163" cy="92" r="5" /><circle cx="158" cy="68" r="4" />
+                <circle cx="215" cy="92" r="5" /><circle cx="195" cy="68" r="4" />
+              </g>
+            </svg>
+            <div style="font-size:0.74rem;color:var(--text-muted);">
+              Emergencia inicial (V2) · MODIS NDVI: <strong>0.34</strong>
+            </div>
+          </div>
+
+          <div class="photo-frame" style="border-color:rgba(34,197,94,0.5);">
+            <div class="photo-meta">
+              <span style="color:#4ade80;">📅 Hoy 14 Nov (12:00)</span>
+              <span style="color:#4ade80;">Cobertura: 58% (+34%)</span>
+            </div>
+            <svg viewBox="0 0 260 130" style="width:100%;border-radius:8px;border:1px solid var(--border);">
+              <rect width="260" height="45" fill="#1e3a5f" />
+              <polygon points="0,45 65,20 135,42 205,15 260,45" fill="#2b4c75" />
+              <rect y="45" width="260" height="85" fill="#493326" />
+              <!-- Plantas desarrolladas -->
+              <g fill="#16a34a">
+                <ellipse cx="52" cy="96" rx="18" ry="12" /><ellipse cx="76" cy="68" rx="13" ry="9" />
+                <ellipse cx="106" cy="96" rx="19" ry="13" /><ellipse cx="116" cy="68" rx="14" ry="9" />
+                <ellipse cx="162" cy="96" rx="19" ry="13" /><ellipse cx="158" cy="68" rx="14" ry="9" />
+                <ellipse cx="215" cy="96" rx="18" ry="12" /><ellipse cx="196" cy="68" rx="13" ry="9" />
+              </g>
+              <g fill="#22c55e">
+                <ellipse cx="52" cy="92" rx="12" ry="7" /><ellipse cx="106" cy="92" rx="13" ry="7" />
+                <ellipse cx="162" cy="92" rx="13" ry="7" /><ellipse cx="215" cy="92" rx="12" ry="7" />
+              </g>
+            </svg>
+            <div style="font-size:0.74rem;color:#4ade80;">
+              Desarrollo vegetativo vigoroso · MODIS NDVI: <strong>0.48</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Estado de los Equipos y Nodos + Comparativa Satélite vs Terreno -->
+    <section class="mid-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔋 Estado de los Equipos en Campo (Nodos LoRaWAN, Gateway y Cámara)</div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>Dispositivo</th>
+                <th>Sensores / Función</th>
+                <th>Conectividad</th>
+                <th>Batería / Energía</th>
+                <th>Señal Radio</th>
+                <th>Última Lectura</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Nodo #01 (Estación Aire)</strong></td>
+                <td>Temp/Hum ambiente + Veleta viento</td>
+                <td><span class="freq-tag">LoRaWAN (15 min)</span></td>
+                <td>
+                  <div class="battery-bar">
+                    <div class="battery-track"><div class="battery-fill" style="width:94%;background:#22c55e;"></div></div>
+                    <span>94% (Solar)</span>
+                  </div>
+                </td>
+                <td>-78 dBm (SNR +9.2)</td>
+                <td>Hace 4 min</td>
+              </tr>
+              <tr>
+                <td><strong>Nodo #02 (Suelo Norte)</strong></td>
+                <td>Sonda Temp + Humedad capacitiva (15 cm)</td>
+                <td><span class="freq-tag">LoRaWAN (30 min)</span></td>
+                <td>
+                  <div class="battery-bar">
+                    <div class="battery-track"><div class="battery-fill" style="width:88%;background:#22c55e;"></div></div>
+                    <span>88% (LiSOCl2)</span>
+                  </div>
+                </td>
+                <td>-89 dBm (SNR +6.5)</td>
+                <td>Hace 12 min</td>
+              </tr>
+              <tr>
+                <td><strong>Nodo #03 (Suelo Sur)</strong></td>
+                <td>Sonda Temp + Humedad capacitiva (35 cm)</td>
+                <td><span class="freq-tag">LoRaWAN (30 min)</span></td>
+                <td>
+                  <div class="battery-bar">
+                    <div class="battery-track"><div class="battery-fill" style="width:42%;background:#f59e0b;"></div></div>
+                    <span style="color:var(--amber);">42% (Batería)</span>
+                  </div>
+                </td>
+                <td>-95 dBm (SNR +4.1)</td>
+                <td>Hace 18 min</td>
+              </tr>
+              <tr>
+                <td><strong>Gateway LoRaWAN Rural</strong></td>
+                <td>Concentrador 8 canales → ChirpStack/TTN</td>
+                <td><span class="freq-tag">LoRa + Backhaul 4G</span></td>
+                <td>
+                  <div class="battery-bar">
+                    <div class="battery-track"><div class="battery-fill" style="width:100%;background:#22c55e;"></div></div>
+                    <span>100% (Solar 30W)</span>
+                  </div>
+                </td>
+                <td>En línea</td>
+                <td>Tiempo real</td>
+              </tr>
+              <tr>
+                <td><strong>Cámara Fenológica Fija</strong></td>
+                <td>1 foto/día (12:00) + Índice cobertura verde</td>
+                <td><span class="freq-tag" style="color:#38bdf8;">4G/LTE / SD</span></td>
+                <td>
+                  <div class="battery-bar">
+                    <div class="battery-track"><div class="battery-fill" style="width:96%;background:#22c55e;"></div></div>
+                    <span>96% (Solar 10W)</span>
+                  </div>
+                </td>
+                <td>4G LTE (-74 dBm)</td>
+                <td>Hoy 12:00</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🛰️ Sinergia: Satélite NASA vs. Sensores LoRaWAN</div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Criterio</th>
+              <th>Satélite (NASA POWER)</th>
+              <th>Sensores en Campo (LoRaWAN)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Escala</strong></td>
+              <td>Regional (~50 km · 0.5°×0.625°)</td>
+              <td style="color:#4ade80;"><strong>La parcela exacta</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Frecuencia</strong></td>
+              <td>Con días de retraso</td>
+              <td style="color:#4ade80;"><strong>Cada 15–30 minutos</strong></td>
+            </tr>
+            <tr>
+              <td><strong>Historial</strong></td>
+              <td style="color:#38bdf8;"><strong>+20 años continuos</strong></td>
+              <td>Desde su instalación</td>
+            </tr>
+            <tr>
+              <td><strong>Imágenes</strong></td>
+              <td>MODIS NDVI (250m–1km)</td>
+              <td style="color:#4ade80;"><strong>1 foto/día por 4G/Wi-Fi</strong></td>
+            </tr>
+          </tbody>
+        </table>
+        <div style="margin-top:0.85rem;padding:0.75rem;border-radius:10px;background:var(--bg-input);border:1px solid var(--border);font-size:0.79rem;color:var(--text-muted);">
+          💡 <strong>Nota de arquitectura:</strong> LoRaWAN transmite paquetes ultraligeros ideales para sensores a kilómetros de distancia sin cables, mientras que la cámara diaria se enciende solo 1 vez al día por 4G/Wi-Fi.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const TREND_DATA = {
+      dia: {
+        labels: ["00:00", "03:00", "06:00", "09:00", "12:00", "15:00", "18:00", "21:00", "Ahora"],
+        humSuelo: [33, 32, 31, 30, 29, 28, 27, 26.5, 26],
+        tempAire: [10.5, 8.8, 8.4, 15.2, 23.1, 25.1, 21.0, 15.8, 22.4],
+        tempSuelo: [16.8, 16.0, 15.5, 16.9, 19.2, 20.4, 19.8, 18.7, 18.9]
+      },
+      semana: {
+        labels: ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Hoy"],
+        humSuelo: [46, 42, 38, 35, 31, 28, 26],
+        tempAire: [20.5, 21.2, 22.8, 23.4, 21.9, 22.1, 22.4],
+        tempSuelo: [17.8, 18.1, 18.5, 19.0, 18.6, 18.8, 18.9]
+      },
+      mes: {
+        labels: ["Sem 1 (Riego)", "Sem 2", "Sem 3 (Lluvia 12mm)", "Sem 4 (Actual)"],
+        humSuelo: [58, 44, 49, 26],
+        tempAire: [19.4, 20.6, 21.1, 22.4],
+        tempSuelo: [17.1, 17.8, 18.2, 18.9]
+      }
+    };
+
+    let chartInstance = null;
+
+    function updateTrendChart(rangeKey, btnEl) {
+      if (btnEl) {
+        document.querySelectorAll(".range-btn").forEach((b) => b.classList.remove("active"));
+        btnEl.classList.add("active");
+      }
+      const d = TREND_DATA[rangeKey];
+      const ctx = document.getElementById("iotTrendChart").getContext("2d");
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: d.labels,
+          datasets: [
+            {
+              label: "Humedad del Suelo (%)",
+              data: d.humSuelo,
+              borderColor: "#f59e0b",
+              backgroundColor: "rgba(245, 158, 11, 0.15)",
+              fill: true,
+              tension: 0.35,
+              yAxisID: "yPct"
+            },
+            {
+              label: "Temp. Ambiente (°C)",
+              data: d.tempAire,
+              borderColor: "#38bdf8",
+              backgroundColor: "#38bdf8",
+              tension: 0.35,
+              yAxisID: "yTemp"
+            },
+            {
+              label: "Temp. del Suelo (°C)",
+              data: d.tempSuelo,
+              borderColor: "#22c55e",
+              borderDash: [5, 4],
+              tension: 0.35,
+              yAxisID: "yTemp"
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          color: "#cbd5e1",
+          scales: {
+            yPct: {
+              type: "linear",
+              position: "left",
+              min: 0,
+              max: 80,
+              title: { display: true, text: "Humedad Suelo (%)", color: "#f59e0b" },
+              ticks: { color: "#f59e0b" }
+            },
+            yTemp: {
+              type: "linear",
+              position: "right",
+              min: 0,
+              max: 40,
+              grid: { drawOnChartArea: false },
+              title: { display: true, text: "Temperatura (°C)", color: "#38bdf8" },
+              ticks: { color: "#38bdf8" }
+            }
+          }
+        }
+      });
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      updateTrendChart("dia");
+    });
+  </script>
+</body>
+</html>
