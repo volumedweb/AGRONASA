@@ -28,7 +28,8 @@ from .schemas import (
     RotationRequest,
     RotationResponse,
 )
-from .siguiente_cultivo import CultivoDesconocido, armar_siguiente_cultivo
+from .guia_rotacion import cargar_guia, productos_sin_cultivo
+from .siguiente_cultivo import CultivoDesconocido, armar_siguiente_cultivo, armar_solo_guia
 from .scoring import generate_general_soil_observations, load_crops, recommend_crops
 
 def _ajustar_a_hoy(recs: List[Any], mes_siembra: Optional[int], lat: float, lon: float) -> Tuple[List[Any], Optional[Dict[str, Any]]]:
@@ -339,12 +340,22 @@ def api_post_iot_telemetry(
 
 
 
+@app.get("/api/rotation-guide")
+def api_rotation_guide() -> Dict[str, Any]:
+    """Guía de rotación agrícola de Bolivia (22 productos en 3 zonas) y los productos que se pueden elegir sin estar en crops.json."""
+    guia = cargar_guia()
+    return {**guia, "productos_sin_cultivo": productos_sin_cultivo(guia)}
+
+
 @app.post("/api/next-crop")
 def api_next_crop(req: NextCropRequest) -> Dict[str, Any]:
     grid_lat, grid_lon = round_to_nasa_grid(req.lat, req.lon)
     clim_raw, mode, zone_name = get_climatology(req.lat, req.lon)
     try:
-        resultado = armar_siguiente_cultivo(clim_raw, req.cultivo_anterior_id, req.mes_siembra, req.suelo, req.riego)
+        if req.cultivo_anterior_id.startswith("guia:"):
+            resultado = armar_solo_guia(clim_raw, req.cultivo_anterior_id[5:])
+        else:
+            resultado = armar_siguiente_cultivo(clim_raw, req.cultivo_anterior_id, req.mes_siembra, req.suelo, req.riego)
     except CultivoDesconocido:
         raise HTTPException(status_code=404, detail=f"Cultivo desconocido: {req.cultivo_anterior_id}")
     return {

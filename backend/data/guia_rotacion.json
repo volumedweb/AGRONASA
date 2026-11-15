@@ -1,0 +1,754 @@
+{
+ "zonas": {
+  "llanos": "Llanos y trópico",
+  "valles": "Valles",
+  "altiplano": "Altiplano y zona andina"
+ },
+ "filas": [
+  {
+   "zona": "llanos",
+   "producto": "Soya",
+   "slug": "soya",
+   "cultivos": [
+    "soya"
+   ],
+   "temporada": "Verano (Nov–Ene)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo de Fósforo/Azufre"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Poco Rastrojo / Roya"
+    }
+   ],
+   "despues": "Sorgo, Maíz, Girasol o Trigo (Invierno: Jun–Jul)",
+   "despues_cultivos": [
+    "maiz",
+    "girasol"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Generador de Biomasa"
+    },
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Descompactador"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Arroz",
+   "slug": "arroz",
+   "cultivos": [
+    "arroz"
+   ],
+   "temporada": "Verano (Nov–Ene)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo de Nitrógeno"
+    },
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Compactación Superficial"
+    }
+   ],
+   "despues": "Frejol Caupí, Mucuna o Crotalaria (Invierno: Jun–Jul)",
+   "despues_cultivos": [
+    "frijol"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Cobertura Rápida"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Maíz Amarillo Duro",
+   "slug": "maiz-amarillo-duro",
+   "cultivos": [
+    "maiz"
+   ],
+   "temporada": "Verano o Invierno",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Consumo Excesivo de Nitrógeno y Potasio"
+    }
+   ],
+   "despues": "Soya, Frejol o consorcio con Pastura Brachiaria",
+   "despues_cultivos": [
+    "soya",
+    "frijol"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Regenerador de Estructura"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Yuca y Camote",
+   "slug": "yuca-y-camote",
+   "cultivos": [
+    "yuca"
+   ],
+   "temporada": "Anual (8–12 meses)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo de Potasio"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Suelo Removido en Cosecha"
+    }
+   ],
+   "despues": "Maíz asociado con Frejol o Mucuna (Abono verde)",
+   "despues_cultivos": [
+    "maiz",
+    "frijol"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Amarre de Suelo"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Sésamo y Chía",
+   "slug": "sesamo-y-chia",
+   "cultivos": [],
+   "temporada": "Verano / Invierno",
+   "impacto": [
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Cobertura Media / Ciclo Corto"
+    }
+   ],
+   "despues": "Sorgo Forrajero, Mijo o Frijol Caupí",
+   "despues_cultivos": [
+    "frijol"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Colchón de Rastrojo"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Caña de Azúcar",
+   "slug": "cana-de-azucar",
+   "cultivos": [],
+   "temporada": "Semi-permanente (5–7 años)",
+   "impacto": [
+    {
+     "color": "amarillo",
+     "icono": "🟡",
+     "texto": "Semi-permanente"
+    },
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Alto Consumo y Compactación"
+    }
+   ],
+   "despues": "Al renovar cañaveral: Crotalaria o Mucuna (4–6 meses)",
+   "despues_cultivos": [],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Descompactador"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Plátano y Banano",
+   "slug": "platano-y-banano",
+   "cultivos": [
+    "platano"
+   ],
+   "temporada": "Permanente",
+   "impacto": [
+    {
+     "color": "amarillo",
+     "icono": "🟡",
+     "texto": "Permanente"
+    },
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Alto Consumo de Potasio"
+    }
+   ],
+   "despues": "Cobertura viva entre calles: Maní Forrajero o Kudzú",
+   "despues_cultivos": [
+    "mani"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Control de Erosión"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Cítricos, Piña y Palmito",
+   "slug": "citricos-pina-y-palmito",
+   "cultivos": [
+    "citricos"
+   ],
+   "temporada": "Permanente / Plurianual",
+   "impacto": [
+    {
+     "color": "amarillo",
+     "icono": "🟡",
+     "texto": "Permanente"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Riesgo de Erosión en Laderas"
+    }
+   ],
+   "despues": "Cobertura viva entre surcos: Maní Forrajero o Braquiaria baja",
+   "despues_cultivos": [
+    "mani"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Protección Solar y Hídrica"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Cacao, Café y Coca",
+   "slug": "cacao-cafe-y-coca",
+   "cultivos": [],
+   "temporada": "Permanente (Yungas/Alto Beni)",
+   "impacto": [
+    {
+     "color": "amarillo",
+     "icono": "🟡",
+     "texto": "Permanente"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Pendientes Pronunciadas"
+    }
+   ],
+   "despues": "Sistemas agroforestales con árboles leguminosos (Pacay / Guaba)",
+   "despues_cultivos": [],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Aporte de Hojarasca"
+    }
+   ]
+  },
+  {
+   "zona": "llanos",
+   "producto": "Castaña y Asaí",
+   "slug": "castana-y-asai",
+   "cultivos": [],
+   "temporada": "Recolección Silvestre (Dic–Mar)",
+   "impacto": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Sistema Forestal Nativo / Equilibrio Natural"
+    }
+   ],
+   "despues": "No requiere rotación (manejo sostenible del bosque amazónico)",
+   "despues_cultivos": [],
+   "beneficios": [
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Conservación Biológica Total"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Papa",
+   "slug": "papa",
+   "cultivos": [
+    "papa"
+   ],
+   "temporada": "Primavera (Ago–Nov)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Consumo Excesivo"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Tierra Suelta y Nematodos"
+    }
+   ],
+   "despues": "Paso 1: Cebada / Avena → Paso 2: Haba / Arveja / Alfalfa",
+   "despues_cultivos": [
+    "haba"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Amarre de Suelo"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Tomate, Pimentón y Locoto",
+   "slug": "tomate-pimenton-y-locoto",
+   "cultivos": [
+    "tomate"
+   ],
+   "temporada": "Primavera–Verano",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo Intenso"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Alto Riesgo de Virus y Nematodos"
+    }
+   ],
+   "despues": "Cebolla, Ajo, Anís o Frejol / Arveja (Otoño–Invierno)",
+   "despues_cultivos": [
+    "cebolla",
+    "frijol"
+   ],
+   "beneficios": [
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Corte de Plagas de Raíz"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Cebolla, Ajo y Zanahoria",
+   "slug": "cebolla-ajo-y-zanahoria",
+   "cultivos": [
+    "cebolla",
+    "zanahoria"
+   ],
+   "temporada": "Otoño–Invierno",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo Superficial"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Riesgo de Hongos de Bulbo"
+    }
+   ],
+   "despues": "Maíz Choclero, Trigo o Arveja",
+   "despues_cultivos": [
+    "maiz"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Generador de Biomasa"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Maíz Choclero / Blanco",
+   "slug": "maiz-choclero-blanco",
+   "cultivos": [
+    "maiz"
+   ],
+   "temporada": "Primavera (Sep–Nov)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Consumo Excesivo de Nitrógeno"
+    }
+   ],
+   "despues": "Haba Verde, Arveja o Frejol (asociado o siguiente ciclo)",
+   "despues_cultivos": [
+    "haba",
+    "frijol"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Ají y Maní",
+   "slug": "aji-y-mani",
+   "cultivos": [
+    "mani"
+   ],
+   "temporada": "Primavera (Sep–Nov)",
+   "impacto": [
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Suelo Muy Removido (Maní)"
+    },
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo"
+    }
+   ],
+   "despues": "Maíz asociado con Zapallo o Avena Forrajera",
+   "despues_cultivos": [
+    "maiz"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Sujeción y Sombra de Suelo"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Trigo y Amaranto",
+   "slug": "trigo-y-amaranto",
+   "cultivos": [],
+   "temporada": "Invierno / Primavera",
+   "impacto": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Cobertura Radicular"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Consumo Moderado de Nitrógeno"
+    }
+   ],
+   "despues": "Haba, Arveja o Alfalfa",
+   "despues_cultivos": [
+    "haba"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Recuperador Profundo"
+    }
+   ]
+  },
+  {
+   "zona": "valles",
+   "producto": "Vid (Uva), Durazno, Manzana, Chirimoya y Frutilla",
+   "slug": "vid-uva-durazno-manzana-chirimoya-y-frutilla",
+   "cultivos": [],
+   "temporada": "Permanente / Plurianual",
+   "impacto": [
+    {
+     "color": "amarillo",
+     "icono": "🟡",
+     "texto": "Permanente"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Compactación por Tránsito"
+    }
+   ],
+   "despues": "Cobertura invernal entre hileras: Avena, Cebada o Trébol",
+   "despues_cultivos": [],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Infiltración de Agua"
+    },
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "altiplano",
+   "producto": "Papa (Dulce y Amarga)",
+   "slug": "papa-dulce-y-amarga",
+   "cultivos": [
+    "papa"
+   ],
+   "temporada": "Primavera (Sep–Nov)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Consumo Excesivo"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Riesgo de Gorgojo y Nematodos"
+    }
+   ],
+   "despues": "Año 2: Quinua o Cañahua (aprovecha nutrientes residuales)",
+   "despues_cultivos": [
+    "quinua"
+   ],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Aprovechamiento Residual"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Corte de Plagas"
+    }
+   ]
+  },
+  {
+   "zona": "altiplano",
+   "producto": "Quinua Real y Cañahua",
+   "slug": "quinua-real-y-canahua",
+   "cultivos": [
+    "quinua"
+   ],
+   "temporada": "Primavera (Sep–Nov)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo de Saponina/Minerales"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Erosión Eólica"
+    }
+   ],
+   "despues": "Año 3: Cebada o Avena Forrajera",
+   "despues_cultivos": [],
+   "beneficios": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Amarre contra Viento y Heladas"
+    }
+   ]
+  },
+  {
+   "zona": "altiplano",
+   "producto": "Oca, Papaliza e Isaño",
+   "slug": "oca-papaliza-e-isano",
+   "cultivos": [],
+   "temporada": "Primavera (Sep–Nov)",
+   "impacto": [
+    {
+     "color": "rojo",
+     "icono": "🔴",
+     "texto": "Extractivo de Potasio"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Suelo Removido"
+    }
+   ],
+   "despues": "Haba Seca o Tarwi (Chochos)",
+   "despues_cultivos": [
+    "haba"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    }
+   ]
+  },
+  {
+   "zona": "altiplano",
+   "producto": "Cebada y Avena Forrajera",
+   "slug": "cebada-y-avena-forrajera",
+   "cultivos": [],
+   "temporada": "Primavera (Oct–Nov)",
+   "impacto": [
+    {
+     "color": "verde",
+     "icono": "🟢",
+     "texto": "Protector contra Erosión"
+    },
+    {
+     "color": "naranja",
+     "icono": "🟠",
+     "texto": "Consumo de Nitrógeno"
+    }
+   ],
+   "despues": "Tarwi, Haba o Descanso (Barbecho de 2–4 años)",
+   "despues_cultivos": [
+    "haba"
+   ],
+   "beneficios": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Fijador de Nitrógeno"
+    },
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Regeneración Biológica"
+    }
+   ]
+  },
+  {
+   "zona": "altiplano",
+   "producto": "Haba Seca y Tarwi",
+   "slug": "haba-seca-y-tarwi",
+   "cultivos": [
+    "haba"
+   ],
+   "temporada": "Primavera (Sep–Oct)",
+   "impacto": [
+    {
+     "color": "azul",
+     "icono": "🔵",
+     "texto": "Mejorador de Suelo"
+    }
+   ],
+   "despues": "Papa (inicia nuevamente el ciclo de 4 años)",
+   "despues_cultivos": [
+    "papa"
+   ],
+   "beneficios": [
+    {
+     "color": "morado",
+     "icono": "🟣",
+     "texto": "Suelo Listo para Cultivo Exigente"
+    }
+   ]
+  }
+ ],
+ "reglas": [
+  "Evita la repetición: Si tu cultivo tiene etiqueta 🔴 [Extractivo] u 🟠 [Riesgo Sanitario], nunca lo repitas en la siguiente campaña en el mismo lote.",
+  "Protege el suelo desnudo: Si la cosecha dejó la tierra suelta o sin cobertura, prioriza un reemplazo 🟢 [Generador de Biomasa] (cereales o pastos).",
+  "Repone fertilidad química: Si el suelo quedó agotado de nutrientes, prioriza un reemplazo 🔵 [Fijador de Nitrógeno] (leguminosas).",
+  "Maneja cultivos permanentes: Si el cultivo tiene etiqueta 🟡 [Permanente], no arranques la plantación; siembra leguminosas bajas o pastos entre los surcos para alimentar y proteger la tierra mientras los árboles o cañas producen."
+ ]
+}

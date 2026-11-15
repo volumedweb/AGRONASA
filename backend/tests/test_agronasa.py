@@ -574,3 +574,38 @@ def test_iot_ingest_token_staleness_and_cache_bounds(monkeypatch):
     for i in range(10):
         nasa_client._cache_set(f"k{i}", i)
     assert len(nasa_client._MEMORY_CACHE) <= 3 and "k9" in nasa_client._MEMORY_CACHE
+
+
+def test_rotation_guide_is_complete_shown_and_in_sync_with_markdown():
+    from pathlib import Path
+    from app.guia_rotacion import RUTA_MD, cargar_guia, parsear_guia
+    from app.siguiente_cultivo import GUIA_POR_ZONA
+
+    guia = cargar_guia()
+    assert len(guia["filas"]) == 22 and len(guia["reglas"]) == 4
+    assert {f["zona"] for f in guia["filas"]} == {"llanos", "valles", "altiplano"}
+    if Path(RUTA_MD).exists():  # el JSON que usa la app es la guía actual
+        assert parsear_guia(Path(RUTA_MD).read_text(encoding="utf-8")) == {**guia}
+
+    # el motor usa la misma fuente: después de soya en los Llanos → maíz y girasol
+    assert GUIA_POR_ZONA["llanos"]["soya"]["ids"] == ["maiz", "girasol"]
+
+    # soya elegida desde el valle: la guía la tiene solo en los Llanos y se muestra igual, con su aviso de zona
+    r = client.post("/api/next-crop", json={"lat": -17.39, "lon": -66.28, "cultivo_anterior_id": "soya"}).json()
+    fila = r["guia"]["filas"][0]
+    assert fila["producto"] == "Soya" and fila["zona"] == "llanos" and fila["en_tu_zona"] is False
+    assert "Sorgo" in fila["despues"] and fila["temporada"].startswith("Verano")
+    assert [b["texto"] for b in fila["impacto"]] and [b["texto"] for b in fila["beneficios"]]
+
+    # en los Llanos, la fila aparece como "en tu zona"
+    ll = client.post("/api/next-crop", json={"lat": -17.78, "lon": -63.18, "cultivo_anterior_id": "soya"}).json()
+    assert ll["guia"]["filas"][0]["en_tu_zona"] is True and "Llanos" in ll["guia"]["zona_detectada"]
+
+    # productos que solo están en la guía (caña, sésamo, ají…) se pueden elegir y muestran la guía sin puntajes
+    g = client.get("/api/rotation-guide").json()
+    nombres = {p["nombre"] for p in g["productos_sin_cultivo"]}
+    assert {"Sésamo y Chía", "Caña de Azúcar"} <= nombres
+    caña = next(p for p in g["productos_sin_cultivo"] if p["nombre"] == "Caña de Azúcar")
+    r2 = client.post("/api/next-crop", json={"lat": -17.78, "lon": -63.18, "cultivo_anterior_id": caña["id"]}).json()
+    assert r2["solo_guia"] is True and r2["sugerencias"] == [] and "Crotalaria" in r2["guia"]["filas"][0]["despues"]
+    assert client.post("/api/next-crop", json={"lat": -17.78, "lon": -63.18, "cultivo_anterior_id": "guia:no-existe"}).status_code == 404

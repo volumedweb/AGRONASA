@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from .climate import MONTH_KEYS, MONTH_NAMES_ES, mensual
+from .guia_rotacion import NOMBRES_ZONA, cargar_guia, fila_por_slug, filas_de_cultivo
 from .rotation import _advance_month, _tags_for_crop
 from .schemas import RotationStep, SoilInput
 from .scoring import evaluate_crop_for_month, load_crops
@@ -8,38 +9,24 @@ from .scoring import evaluate_crop_for_month, load_crops
 PERMANENTES = {"platano", "citricos"}
 CICLO_LARGO_DIAS = 240  # más de ~8 meses: no sirve a quien siembra por temporada
 
-ZONAS = {"llanos": "Llanos y trópico", "valles": "Valles", "altiplano": "Altiplano y zona andina"}
-
-_FIJADOR = ("azul", "🔵", "Fijador de Nitrógeno")
-_BIOMASA = ("verde", "🟢", "Generador de Biomasa")
-_DESCOMPACTADOR = ("morado", "🟣", "Descompactador")
-_AMARRE = ("verde", "🟢", "Amarre de Suelo")
-
-# Lo que la guía de rotación agrícola de Bolivia recomienda sembrar después, por zona.
-# Solo los cultivos que existen en crops.json (la guía también menciona sorgo, trigo, cebada, etc.).
-GUIA_POR_ZONA: Dict[str, Dict[str, Dict[str, Any]]] = {
-    "llanos": {
-        "soya": {"ids": ["maiz", "girasol"], "beneficios": [_BIOMASA, _DESCOMPACTADOR]},
-        "arroz": {"ids": ["frijol"], "beneficios": [_FIJADOR, ("verde", "🟢", "Cobertura Rápida")]},
-        "maiz": {"ids": ["soya", "frijol"], "beneficios": [_FIJADOR, ("morado", "🟣", "Regenerador de Estructura")]},
-        "yuca": {"ids": ["maiz", "frijol"], "beneficios": [_AMARRE, _FIJADOR]},
-        "mani": {"ids": ["maiz", "frijol"], "beneficios": [_AMARRE, _FIJADOR]},
-    },
-    "valles": {
-        "papa": {"ids": ["haba"], "beneficios": [_AMARRE, _FIJADOR]},
-        "tomate": {"ids": ["cebolla", "frijol"], "beneficios": [("naranja", "🟠", "Corte de Plagas"), _FIJADOR]},
-        "cebolla": {"ids": ["maiz"], "beneficios": [_BIOMASA]},
-        "zanahoria": {"ids": ["maiz"], "beneficios": [_BIOMASA]},
-        "maiz": {"ids": ["haba", "frijol"], "beneficios": [_FIJADOR]},
-        "mani": {"ids": ["maiz"], "beneficios": [("verde", "🟢", "Sujeción y Sombra de Suelo")]},
-    },
-    "altiplano": {
-        "papa": {"ids": ["quinua"], "beneficios": [("verde", "🟢", "Aprovechamiento Residual"), ("naranja", "🟠", "Corte de Plagas")]},
-        "haba": {"ids": ["papa"], "beneficios": [("morado", "🟣", "Suelo Listo para Cultivo Exigente")]},
-    },
-}
+ZONAS = NOMBRES_ZONA
 PUNTAJE_MINIMO = 35
 CICLOS_DEL_PLAN = 2
+
+
+def _guia_por_zona() -> Dict[str, Dict[str, Dict[str, Any]]]:
+    """Qué recomienda la guía después de cada cultivo de crops.json, por zona (viene de data/guia_rotacion.json)."""
+    resultado: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    for fila in cargar_guia()["filas"]:
+        for id_ in fila["cultivos"]:
+            resultado.setdefault(fila["zona"], {})[id_] = {
+                "ids": fila["despues_cultivos"],
+                "beneficios": [(b["color"], b["icono"], b["texto"]) for b in fila["beneficios"]],
+            }
+    return resultado
+
+
+GUIA_POR_ZONA = _guia_por_zona()
 
 
 class CultivoDesconocido(ValueError):
@@ -201,6 +188,40 @@ def sugerir_siguientes(
     return sorted(viables, key=lambda s: s["afinidad"], reverse=True)[:limite]
 
 
+def _bloque_guia(filas: List[Dict[str, Any]], zona: str) -> Dict[str, Any]:
+    """Lo que dice la guía sobre este cultivo: primero la fila de tu zona, luego las de otras zonas."""
+    guia = cargar_guia()
+    ordenadas = sorted(filas, key=lambda f: f["zona"] != zona)
+    return {
+        "zona_detectada": NOMBRES_ZONA[zona],
+        "filas": [{**f, "zona_nombre": NOMBRES_ZONA[f["zona"]], "en_tu_zona": f["zona"] == zona} for f in ordenadas],
+        "reglas": guia["reglas"],
+    }
+
+
+def armar_solo_guia(climatologia: Dict[str, Dict[str, Any]], slug: str) -> Dict[str, Any]:
+    """Producto que está en la guía pero no en crops.json (caña, sésamo, ají…): se muestra lo que dice la guía, sin puntajes."""
+    filas = fila_por_slug(cargar_guia(), slug)
+    if not filas:
+        raise CultivoDesconocido(slug)
+    zona = _zona(climatologia)
+    primera = filas[0]
+    return {
+        "anterior": {
+            "id": f"guia:{slug}", "cultivo": primera["producto"], "familia": "", "categoria": "guia",
+            "demanda_nitrogeno": None, "raiz": None, "fija_nitrogeno": None, "permanente": False,
+            "etiquetas": primera["impacto"], "resumen": f"{primera['producto']}: {primera['temporada']}.",
+        },
+        "zona": NOMBRES_ZONA[zona],
+        "confianza": None,
+        "sugerencias": [],
+        "ciclo_rotacion": [],
+        "guia": _bloque_guia(filas, zona),
+        "solo_guia": True,
+        "nota": "Este producto no está en la base de cultivos con datos de clima: se muestra lo que recomienda la guía de rotación de Bolivia.",
+    }
+
+
 def _confianza(suelo: Optional[SoilInput], riego: Optional[str], hay_guia: bool, mejor_puntaje: Optional[int]) -> Dict[str, Any]:
     """Qué tan firme es la sugerencia: 10–95 según los datos que aportó el usuario y el respaldo de la guía."""
     campos = ("ph", "materia_organica_pct", "textura", "nitrogeno", "fosforo", "potasio", "pendiente_pct")
@@ -283,6 +304,7 @@ def armar_siguiente_cultivo(
             "permanente": prev_p["permanente"], "etiquetas": [t.model_dump() for t in _tags_for_crop(prev["id"], prev)], "resumen": _resumen(prev, prev_p),
         },
         "zona": ZONAS[zona],
+        "guia": _bloque_guia(filas_de_cultivo(cargar_guia(), anterior_id), zona),
         "confianza": _confianza(
             suelo, riego, anterior_id in GUIA_POR_ZONA.get(zona, {}),
             sugerencias[0]["puntaje_climatico"] if sugerencias else None,
